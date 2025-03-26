@@ -5,6 +5,7 @@ import { insertHabitSchema, insertHabitRecordSchema } from "@shared/schema";
 import { log } from "./vite";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
+import { calendarIntegrations } from "./integrations";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const router = express.Router();
@@ -207,6 +208,125 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       log(`Error updating habit record: ${error}`);
       res.status(500).json({ message: "Failed to update habit record" });
+    }
+  });
+
+  // Calendar Integration Routes
+  
+  // Sync habits to Google Calendar
+  router.post("/integrations/google-calendar/sync", async (req, res) => {
+    try {
+      const habits = await storage.getHabits();
+      const habitRecords = await storage.getHabitRecords();
+      
+      const success = await calendarIntegrations.syncToGoogleCalendar(habits, habitRecords);
+      
+      if (success) {
+        res.json({ success: true, message: "Successfully synced habits to Google Calendar" });
+      } else {
+        res.status(400).json({ 
+          success: false, 
+          message: "Failed to sync habits to Google Calendar. Make sure you have provided the necessary credentials." 
+        });
+      }
+    } catch (error) {
+      log(`Error syncing to Google Calendar: ${error}`);
+      res.status(500).json({ success: false, message: "Failed to sync habits to Google Calendar" });
+    }
+  });
+  
+  // Get Google Calendar auth URL
+  router.get("/integrations/google-calendar/auth-url", (req, res) => {
+    try {
+      const authUrl = calendarIntegrations.getGoogleAuthUrl();
+      
+      if (authUrl) {
+        res.json({ url: authUrl });
+      } else {
+        res.status(400).json({ 
+          message: "Failed to generate Google Calendar authorization URL. Make sure you have provided the necessary credentials." 
+        });
+      }
+    } catch (error) {
+      log(`Error generating Google Calendar auth URL: ${error}`);
+      res.status(500).json({ message: "Failed to generate Google Calendar authorization URL" });
+    }
+  });
+  
+  // Handle Google Calendar OAuth callback
+  router.get("/auth/google/callback", async (req, res) => {
+    try {
+      const code = req.query.code as string;
+      
+      if (!code) {
+        return res.status(400).json({ message: "Authorization code is required" });
+      }
+      
+      const success = await calendarIntegrations.handleGoogleCallback(code);
+      
+      if (success) {
+        // Redirect to the frontend with success message
+        res.redirect(`/?google_auth_success=true`);
+      } else {
+        // Redirect to the frontend with error message
+        res.redirect(`/?google_auth_error=true`);
+      }
+    } catch (error) {
+      log(`Error handling Google Calendar callback: ${error}`);
+      res.redirect(`/?google_auth_error=true`);
+    }
+  });
+  
+  // Sync habits to Notion
+  router.post("/integrations/notion/sync", async (req, res) => {
+    try {
+      const habits = await storage.getHabits();
+      const habitRecords = await storage.getHabitRecords();
+      
+      const success = await calendarIntegrations.syncToNotion(habits, habitRecords);
+      
+      if (success) {
+        res.json({ success: true, message: "Successfully synced habits to Notion" });
+      } else {
+        res.status(400).json({ 
+          success: false, 
+          message: "Failed to sync habits to Notion. Make sure you have provided the necessary API key." 
+        });
+      }
+    } catch (error) {
+      log(`Error syncing to Notion: ${error}`);
+      res.status(500).json({ success: false, message: "Failed to sync habits to Notion" });
+    }
+  });
+  
+  // Sync habits to all connected services
+  router.post("/integrations/sync-all", async (req, res) => {
+    try {
+      const habits = await storage.getHabits();
+      const habitRecords = await storage.getHabitRecords();
+      
+      const results = await calendarIntegrations.syncToAllServices(habits, habitRecords);
+      
+      res.json({
+        success: results.google || results.notion,
+        results: {
+          google: {
+            success: results.google,
+            message: results.google 
+              ? "Successfully synced to Google Calendar" 
+              : "Failed to sync to Google Calendar"
+          },
+          notion: {
+            success: results.notion,
+            message: results.notion 
+              ? "Successfully synced to Notion" 
+              : "Failed to sync to Notion"
+          }
+        }
+      });
+    } catch (error) {
+      log(`Error syncing to all services: ${error}`);
+      res.status(500).json({ success: false, message: "Failed to sync habits to external services" });
     }
   });
 
