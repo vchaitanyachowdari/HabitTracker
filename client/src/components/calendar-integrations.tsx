@@ -1,158 +1,196 @@
-import { useEffect } from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { useCalendarIntegrations } from "@/hooks/use-calendar-integrations";
-import { Loader2 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { useState } from 'react';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
+import { useCalendarIntegrations } from '@/hooks/use-calendar-integrations';
+import { useToast } from '@/hooks/use-toast';
+import { AlertCircle, Calendar, CheckCircle, Loader2 } from 'lucide-react';
 
 export default function CalendarIntegrations() {
-  const {
-    syncToGoogleCalendar,
-    syncToNotion,
-    syncToAllServices,
-    authorizeGoogle,
-    checkGoogleAuthResult,
-    isGoogleSyncing,
-    isNotionSyncing,
-    isAllSyncing,
-  } = useCalendarIntegrations();
   const { toast } = useToast();
+  const [isSyncing, setIsSyncing] = useState(false);
+  const {
+    googleAuthUrl,
+    notionConfigured,
+    googleConfigured,
+    syncToGoogle,
+    syncToNotion,
+    syncToAll,
+    isLoading
+  } = useCalendarIntegrations();
 
-  // Check if we just came back from Google authorization
-  useEffect(() => {
-    checkGoogleAuthResult();
-  }, []);
-
-  // Function to request API keys from the user
-  const requestApiKeys = (service: "google" | "notion") => {
-    if (service === "google") {
-      // For Google Calendar, we need to ask for API keys
+  const handleGoogleAuth = () => {
+    if (googleAuthUrl) {
+      window.open(googleAuthUrl, '_blank');
+    } else {
       toast({
-        title: "Google Calendar Integration",
-        description: "To use Google Calendar integration, please contact support to set up your API keys.",
-        variant: "default",
+        variant: "destructive",
+        title: "Error",
+        description: "Google Calendar authentication URL is not available.",
       });
-      
-      // In a real application, this would redirect to a form or modal
-      // to collect the user's Google API credentials
-      console.log("Request Google API keys");
-    } else if (service === "notion") {
-      // For Notion, we need to ask for an API key
-      toast({
-        title: "Notion Integration",
-        description: "To use Notion integration, please contact support to set up your API keys.",
-        variant: "default",
-      });
-      
-      // In a real application, this would redirect to a form or modal
-      // to collect the user's Notion API token
-      console.log("Request Notion API key");
     }
   };
 
-  return (
-    <div className="space-y-6">
-      <Card>
+  const handleSync = async (type: 'google' | 'notion' | 'all') => {
+    setIsSyncing(true);
+    try {
+      let success = false;
+
+      if (type === 'google' && googleConfigured) {
+        success = await syncToGoogle();
+      } else if (type === 'notion' && notionConfigured) {
+        success = await syncToNotion();
+      } else if (type === 'all') {
+        const result = await syncToAll();
+        success = result.google || result.notion;
+      }
+
+      if (success) {
+        toast({
+          title: "Sync Successful",
+          description: `Successfully synced habits to ${type === 'all' ? 'all configured calendars' : type === 'google' ? 'Google Calendar' : 'Notion'}`,
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Sync Failed",
+          description: "No calendar services are properly configured for sync.",
+        });
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Sync Error",
+        description: "An error occurred during the sync process.",
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Card className="w-full">
         <CardHeader>
-          <CardTitle>Calendar & Task Integrations</CardTitle>
-          <CardDescription>
-            Connect your habits with external calendars and task management systems
-          </CardDescription>
+          <CardTitle>Calendar Integrations</CardTitle>
+          <CardDescription>Connect and sync with your favorite calendar services</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Google Calendar Integration */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 border rounded-lg">
+        <CardContent className="flex items-center justify-center py-10">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Calendar className="h-5 w-5" />
+          Calendar Integrations
+        </CardTitle>
+        <CardDescription>
+          Connect and sync your habits with external calendar services
+        </CardDescription>
+      </CardHeader>
+
+      <CardContent className="space-y-6">
+        {/* Google Calendar Section */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-medium">Google Calendar</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Sync completed habits to your Google Calendar for better visibility
-              </p>
+              <p className="text-sm text-muted-foreground">Sync your habits to Google Calendar</p>
             </div>
-            <div className="flex items-center gap-2 self-end sm:self-auto">
-              <Button 
-                variant="outline" 
-                onClick={() => requestApiKeys("google")}
-              >
-                Set API Keys
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={authorizeGoogle}
-              >
-                Connect Account
-              </Button>
-              <Button 
-                onClick={syncToGoogleCalendar} 
-                disabled={isGoogleSyncing}
-              >
-                {isGoogleSyncing ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Syncing...
-                  </>
-                ) : (
-                  "Sync Now"
-                )}
-              </Button>
+            <div className="flex items-center">
+              {googleConfigured ? (
+                <span className="flex items-center text-sm text-green-600">
+                  <CheckCircle className="mr-1 h-4 w-4" />
+                  Connected
+                </span>
+              ) : (
+                <span className="flex items-center text-sm text-orange-600">
+                  <AlertCircle className="mr-1 h-4 w-4" />
+                  Not Connected
+                </span>
+              )}
             </div>
           </div>
+          
+          <div className="flex flex-wrap gap-2">
+            {!googleConfigured && (
+              <Button variant="outline" onClick={handleGoogleAuth} disabled={!googleAuthUrl}>
+                Connect Google Calendar
+              </Button>
+            )}
+            <Button 
+              variant="default" 
+              onClick={() => handleSync('google')} 
+              disabled={!googleConfigured || isSyncing}
+            >
+              {isSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Sync to Google Calendar
+            </Button>
+          </div>
+        </div>
 
-          {/* Notion Integration */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 border rounded-lg">
+        <Separator />
+
+        {/* Notion Calendar Section */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-medium">Notion</h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Create a database in Notion with your habit tracking data
-              </p>
+              <p className="text-sm text-muted-foreground">Sync your habits to a Notion database</p>
             </div>
-            <div className="flex items-center gap-2 self-end sm:self-auto">
-              <Button 
-                variant="outline" 
-                onClick={() => requestApiKeys("notion")}
-              >
-                Set API Key
-              </Button>
-              <Button 
-                onClick={syncToNotion} 
-                disabled={isNotionSyncing}
-              >
-                {isNotionSyncing ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Syncing...
-                  </>
-                ) : (
-                  "Sync Now"
-                )}
-              </Button>
+            <div className="flex items-center">
+              {notionConfigured ? (
+                <span className="flex items-center text-sm text-green-600">
+                  <CheckCircle className="mr-1 h-4 w-4" />
+                  Connected
+                </span>
+              ) : (
+                <span className="flex items-center text-sm text-orange-600">
+                  <AlertCircle className="mr-1 h-4 w-4" />
+                  Not Connected
+                </span>
+              )}
             </div>
           </div>
-        </CardContent>
-        <CardFooter className="flex justify-end">
+          
+          {!notionConfigured && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Configuration Required</AlertTitle>
+              <AlertDescription>
+                Notion integration requires API keys to be configured. Please contact the administrator.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <Button 
             variant="default" 
-            onClick={syncToAllServices} 
-            disabled={isAllSyncing}
+            onClick={() => handleSync('notion')} 
+            disabled={!notionConfigured || isSyncing}
           >
-            {isAllSyncing ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Syncing to All Services...
-              </>
-            ) : (
-              "Sync to All Connected Services"
-            )}
+            {isSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Sync to Notion
           </Button>
-        </CardFooter>
-      </Card>
-    </div>
+        </div>
+      </CardContent>
+
+      <CardFooter>
+        <Button 
+          className="w-full" 
+          variant="outline" 
+          onClick={() => handleSync('all')} 
+          disabled={(!(googleConfigured || notionConfigured)) || isSyncing}
+        >
+          {isSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+          Sync to All Services
+        </Button>
+      </CardFooter>
+    </Card>
   );
 }

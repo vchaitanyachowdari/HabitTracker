@@ -8,6 +8,7 @@ import Habits from "@/pages/habits";
 import Calendar from "@/pages/calendar";
 import Statistics from "@/pages/statistics";
 import College from "@/pages/college";
+import Settings from "@/pages/settings";
 import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/sidebar";
 import { TopNav } from "@/components/top-nav";
@@ -73,6 +74,13 @@ function Router() {
         {() => (
           <AppLayout>
             <College />
+          </AppLayout>
+        )}
+      </Route>
+      <Route path="/settings">
+        {() => (
+          <AppLayout>
+            <Settings />
           </AppLayout>
         )}
       </Route>

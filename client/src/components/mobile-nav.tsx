@@ -4,7 +4,8 @@ import {
   ListChecks, 
   Calendar as CalendarIcon, 
   BarChart3,
-  BookOpen
+  BookOpen,
+  Settings
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +37,11 @@ export function MobileNav() {
       name: "College",
       path: "/college",
       icon: BookOpen,
+    },
+    {
+      name: "Settings",
+      path: "/settings",
+      icon: Settings,
     },
   ];
 
