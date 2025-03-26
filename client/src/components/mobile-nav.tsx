@@ -3,7 +3,8 @@ import {
   Home, 
   ListChecks, 
   Calendar as CalendarIcon, 
-  BarChart3 
+  BarChart3,
+  BookOpen
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +31,11 @@ export function MobileNav() {
       name: "Stats",
       path: "/statistics",
       icon: BarChart3,
+    },
+    {
+      name: "College",
+      path: "/college",
+      icon: BookOpen,
     },
   ];
 

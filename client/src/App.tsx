@@ -7,6 +7,7 @@ import Dashboard from "@/pages/dashboard";
 import Habits from "@/pages/habits";
 import Calendar from "@/pages/calendar";
 import Statistics from "@/pages/statistics";
+import College from "@/pages/college";
 import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/sidebar";
 import { TopNav } from "@/components/top-nav";
@@ -65,6 +66,13 @@ function Router() {
         {() => (
           <AppLayout>
             <Statistics />
+          </AppLayout>
+        )}
+      </Route>
+      <Route path="/college">
+        {() => (
+          <AppLayout>
+            <College />
           </AppLayout>
         )}
       </Route>

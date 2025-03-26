@@ -5,7 +5,8 @@ import {
   Calendar as CalendarIcon, 
   BarChart3, 
   Settings,
-  Check
+  Check,
+  BookOpen
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -37,6 +38,11 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
       name: "Statistics",
       path: "/statistics",
       icon: BarChart3,
+    },
+    {
+      name: "College",
+      path: "/college",
+      icon: BookOpen,
     },
     {
       name: "Settings",
