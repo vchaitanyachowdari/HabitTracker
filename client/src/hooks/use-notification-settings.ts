@@ -1,58 +1,59 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { apiRequest, queryClient, getQueryFn } from '@/lib/queryClient';
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { NotificationSettings } from '@shared/schema';
+import { apiRequest } from '@/lib/queryClient';
 
-// User ID is hardcoded to 1 for demo purposes
-// In a real app, this would come from authentication
-const DEFAULT_USER_ID = 1;
+const DEFAULT_USER_ID = 1; // Using default user for now
 
+/**
+ * Hook to manage notification settings for the current user
+ */
 export function useNotificationSettings(userId: number = DEFAULT_USER_ID) {
-  // Get notification settings
-  const { 
-    data: settings, 
-    isLoading, 
-    isError, 
-    error 
+  const queryClient = useQueryClient();
+  const [serviceStatus, setServiceStatus] = useState<{ enabled: boolean } | null>(null);
+  
+  // Fetch notification settings
+  const {
+    data: settings,
+    isLoading,
+    isError,
+    error
   } = useQuery({
-    queryKey: ['/api/notification-settings', userId],
-    queryFn: getQueryFn({ on401: 'returnNull' }),
-    // If there's an error, return default settings
+    queryKey: ['/api/users', userId, 'notification-settings'],
+    enabled: !!userId,
+  });
+
+  // Check notification service status
+  const {
+    isLoading: isCheckingService,
+  } = useQuery({
+    queryKey: ['/api/notification-service/status'],
+    onSuccess: (data) => {
+      setServiceStatus(data);
+    },
     onError: () => {
-      return {
-        enabled: false,
-        phoneNumber: '',
-        notifyBeforeClass: false,
-        notifyMissedClass: false,
-        reminderTime: 30
-      } as NotificationSettings;
+      setServiceStatus({ enabled: false });
     }
   });
 
   // Update notification settings
-  const { 
-    mutate: updateSettings, 
+  const {
+    mutate: updateSettings,
     isPending: isUpdating,
-    isError: isUpdateError,
     error: updateError
   } = useMutation({
     mutationFn: (newSettings: NotificationSettings) => 
-      apiRequest(`/api/notification-settings/${userId}`, {
-        method: 'PATCH',
+      apiRequest('/api/users/' + userId + '/notification-settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(newSettings),
       }),
     onSuccess: () => {
-      // Invalidate cache to refresh data
-      queryClient.invalidateQueries({ queryKey: ['/api/notification-settings', userId] });
-    }
-  });
-
-  // Check notification service status
-  const { 
-    data: serviceStatus, 
-    isLoading: isCheckingService
-  } = useQuery({
-    queryKey: ['/api/notification-service/status'],
-    queryFn: getQueryFn({ on401: 'returnNull' }),
+      // Invalidate queries to refetch data
+      queryClient.invalidateQueries({ queryKey: ['/api/users', userId, 'notification-settings'] });
+    },
   });
 
   return {
@@ -62,7 +63,6 @@ export function useNotificationSettings(userId: number = DEFAULT_USER_ID) {
     error,
     updateSettings,
     isUpdating,
-    isUpdateError,
     updateError,
     serviceStatus,
     isCheckingService
