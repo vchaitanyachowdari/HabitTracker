@@ -1,4 +1,10 @@
-import { habits, type Habit, type InsertHabit, habitRecords, type HabitRecord, type InsertHabitRecord, users, type User, type InsertUser } from "@shared/schema";
+import { 
+  habits, type Habit, type InsertHabit, 
+  habitRecords, type HabitRecord, type InsertHabitRecord, 
+  users, type User, type InsertUser,
+  collegeClasses, type CollegeClass, type InsertCollegeClass,
+  classAttendance, type ClassAttendance, type InsertClassAttendance
+} from "@shared/schema";
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
@@ -17,23 +23,47 @@ export interface IStorage {
   getHabitRecord(habitId: number, date: Date): Promise<HabitRecord | undefined>;
   createHabitRecord(record: InsertHabitRecord): Promise<HabitRecord>;
   updateHabitRecord(id: number, record: Partial<InsertHabitRecord>): Promise<HabitRecord | undefined>;
+  
+  // College Class CRUD operations
+  getCollegeClasses(): Promise<CollegeClass[]>;
+  getCollegeClass(id: number): Promise<CollegeClass | undefined>;
+  createCollegeClass(collegeClass: InsertCollegeClass): Promise<CollegeClass>;
+  updateCollegeClass(id: number, collegeClass: Partial<InsertCollegeClass>): Promise<CollegeClass | undefined>;
+  deleteCollegeClass(id: number): Promise<boolean>;
+  
+  // Class Attendance operations
+  getClassAttendanceRecords(classId?: number, startDate?: Date, endDate?: Date): Promise<ClassAttendance[]>;
+  getClassAttendance(classId: number, date: Date): Promise<ClassAttendance | undefined>;
+  createClassAttendance(record: InsertClassAttendance): Promise<ClassAttendance>;
+  updateClassAttendance(id: number, record: Partial<InsertClassAttendance>): Promise<ClassAttendance | undefined>;
+  
+  // College statistics
+  getAttendanceStats(): Promise<{ attended: number, skipped: number, total: number }>;
 }
 
 export class MemStorage implements IStorage {
   private users: Map<number, User>;
   private habits: Map<number, Habit>;
   private habitRecords: Map<number, HabitRecord>;
+  private collegeClasses: Map<number, CollegeClass>;
+  private classAttendances: Map<number, ClassAttendance>;
   private userId: number;
   private habitId: number;
   private recordId: number;
+  private collegeClassId: number;
+  private classAttendanceId: number;
 
   constructor() {
     this.users = new Map();
     this.habits = new Map();
     this.habitRecords = new Map();
+    this.collegeClasses = new Map();
+    this.classAttendances = new Map();
     this.userId = 1;
     this.habitId = 1;
     this.recordId = 1;
+    this.collegeClassId = 1;
+    this.classAttendanceId = 1;
 
     // Add some initial habits for demonstration
     // We need to use Promise.resolve because we can't make the constructor async
@@ -75,6 +105,94 @@ export class MemStorage implements IStorage {
           date: date,
           completed: completed
         });
+      }
+    }
+    
+    // Creating example college classes
+    const exampleClasses: InsertCollegeClass[] = [
+      { 
+        name: "Introduction to Computer Science", 
+        courseCode: "CS101", 
+        instructor: "Dr. Smith",
+        dayOfWeek: "monday", 
+        startTime: "09:00", 
+        endTime: "10:30", 
+        location: "Building A, Room 101",
+        colorTag: "primary" 
+      },
+      { 
+        name: "Calculus I", 
+        courseCode: "MATH201", 
+        instructor: "Dr. Johnson",
+        dayOfWeek: "tuesday", 
+        startTime: "11:00", 
+        endTime: "12:30", 
+        location: "Building B, Room 203",
+        colorTag: "secondary" 
+      },
+      { 
+        name: "Introduction to Psychology", 
+        courseCode: "PSY101", 
+        instructor: "Dr. Williams",
+        dayOfWeek: "wednesday", 
+        startTime: "14:00", 
+        endTime: "15:30", 
+        location: "Building C, Room 305",
+        colorTag: "accent" 
+      },
+      { 
+        name: "Physics I", 
+        courseCode: "PHYS201", 
+        instructor: "Dr. Brown",
+        dayOfWeek: "thursday", 
+        startTime: "10:00", 
+        endTime: "11:30", 
+        location: "Science Building, Room 102",
+        colorTag: "danger" 
+      },
+      { 
+        name: "English Composition", 
+        courseCode: "ENG101", 
+        instructor: "Prof. Davis",
+        dayOfWeek: "friday", 
+        startTime: "13:00", 
+        endTime: "14:30", 
+        location: "Liberal Arts Building, Room 201",
+        colorTag: "purple" 
+      }
+    ];
+    
+    // Create college classes
+    const createdClasses: CollegeClass[] = [];
+    for (const collegeClass of exampleClasses) {
+      const createdClass = await this.createCollegeClass(collegeClass);
+      createdClasses.push(createdClass);
+    }
+    
+    // Create attendance records for the past 30 days for each class
+    // Only create records for class days that match the day of the week
+    for (const collegeClass of createdClasses) {
+      // Get the day of the week for this class
+      const classDayOfWeek = collegeClass.dayOfWeek;
+      
+      // Create attendance records for the last 30 days
+      for (let i = 0; i < 30; i++) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        
+        // Only create attendance record if day of week matches class day
+        const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+        if (dayOfWeek === classDayOfWeek) {
+          // Random attendance status, with higher chance of attendance
+          const attended = Math.random() > 0.2; // 80% chance of attendance
+          
+          await this.createClassAttendance({
+            classId: collegeClass.id,
+            date: date,
+            attended: attended,
+            notes: attended ? null : "Missed class"
+          });
+        }
       }
     }
   }
@@ -188,6 +306,129 @@ export class MemStorage implements IStorage {
     const updatedRecord = { ...record, ...recordUpdate };
     this.habitRecords.set(id, updatedRecord);
     return updatedRecord;
+  }
+
+  // College Class methods
+  async getCollegeClasses(): Promise<CollegeClass[]> {
+    return Array.from(this.collegeClasses.values());
+  }
+
+  async getCollegeClass(id: number): Promise<CollegeClass | undefined> {
+    return this.collegeClasses.get(id);
+  }
+
+  async createCollegeClass(insertClass: InsertCollegeClass): Promise<CollegeClass> {
+    const id = this.collegeClassId++;
+    const now = new Date();
+    
+    // Ensure proper typing by explicitly setting fields
+    const collegeClass: CollegeClass = { 
+      id,
+      name: insertClass.name,
+      courseCode: insertClass.courseCode,
+      instructor: insertClass.instructor ?? null,
+      dayOfWeek: insertClass.dayOfWeek as "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday", // Type assertion for safety
+      startTime: insertClass.startTime,
+      endTime: insertClass.endTime,
+      location: insertClass.location ?? null,
+      colorTag: insertClass.colorTag as "primary" | "secondary" | "accent" | "danger" | "purple" | "pink", // Type assertion for safety
+      createdAt: now 
+    };
+    
+    this.collegeClasses.set(id, collegeClass);
+    return collegeClass;
+  }
+
+  async updateCollegeClass(id: number, classUpdate: Partial<InsertCollegeClass>): Promise<CollegeClass | undefined> {
+    const collegeClass = this.collegeClasses.get(id);
+    if (!collegeClass) return undefined;
+
+    // Type-safe update
+    const updatedClass: CollegeClass = {
+      id: collegeClass.id,
+      name: classUpdate.name ?? collegeClass.name,
+      courseCode: classUpdate.courseCode ?? collegeClass.courseCode,
+      instructor: classUpdate.instructor !== undefined ? classUpdate.instructor : collegeClass.instructor,
+      dayOfWeek: (classUpdate.dayOfWeek as "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday") ?? collegeClass.dayOfWeek,
+      startTime: classUpdate.startTime ?? collegeClass.startTime,
+      endTime: classUpdate.endTime ?? collegeClass.endTime,
+      location: classUpdate.location !== undefined ? classUpdate.location : collegeClass.location,
+      colorTag: (classUpdate.colorTag as "primary" | "secondary" | "accent" | "danger" | "purple" | "pink") ?? collegeClass.colorTag,
+      createdAt: collegeClass.createdAt
+    };
+    
+    this.collegeClasses.set(id, updatedClass);
+    return updatedClass;
+  }
+
+  async deleteCollegeClass(id: number): Promise<boolean> {
+    return this.collegeClasses.delete(id);
+  }
+
+  // Class Attendance methods
+  async getClassAttendanceRecords(classId?: number, startDate?: Date, endDate?: Date): Promise<ClassAttendance[]> {
+    let records = Array.from(this.classAttendances.values());
+    
+    if (classId !== undefined) {
+      records = records.filter(record => record.classId === classId);
+    }
+    
+    if (startDate) {
+      records = records.filter(record => new Date(record.date) >= startDate);
+    }
+    
+    if (endDate) {
+      records = records.filter(record => new Date(record.date) <= endDate);
+    }
+    
+    return records;
+  }
+
+  async getClassAttendance(classId: number, date: Date): Promise<ClassAttendance | undefined> {
+    const dateString = date.toDateString();
+    return Array.from(this.classAttendances.values()).find(
+      record => record.classId === classId && new Date(record.date).toDateString() === dateString
+    );
+  }
+
+  async createClassAttendance(insertRecord: InsertClassAttendance): Promise<ClassAttendance> {
+    const id = this.classAttendanceId++;
+    const record: ClassAttendance = { 
+      ...insertRecord, 
+      id,
+      notes: insertRecord.notes ?? null 
+    };
+    this.classAttendances.set(id, record);
+    return record;
+  }
+
+  async updateClassAttendance(id: number, recordUpdate: Partial<InsertClassAttendance>): Promise<ClassAttendance | undefined> {
+    const record = this.classAttendances.get(id);
+    if (!record) return undefined;
+
+    const updatedRecord: ClassAttendance = {
+      ...record,
+      classId: recordUpdate.classId ?? record.classId,
+      date: recordUpdate.date ?? record.date,
+      attended: recordUpdate.attended !== undefined ? recordUpdate.attended : record.attended,
+      notes: recordUpdate.notes !== undefined ? recordUpdate.notes : record.notes
+    };
+    
+    this.classAttendances.set(id, updatedRecord);
+    return updatedRecord;
+  }
+
+  // College statistics
+  async getAttendanceStats(): Promise<{ attended: number, skipped: number, total: number }> {
+    const records = Array.from(this.classAttendances.values());
+    const attended = records.filter(record => record.attended).length;
+    const skipped = records.filter(record => !record.attended).length;
+    
+    return {
+      attended,
+      skipped,
+      total: attended + skipped
+    };
   }
 }
 

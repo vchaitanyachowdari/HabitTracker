@@ -1,7 +1,12 @@
 import express, { type Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertHabitSchema, insertHabitRecordSchema } from "@shared/schema";
+import { 
+  insertHabitSchema, 
+  insertHabitRecordSchema,
+  insertCollegeClassSchema,
+  insertClassAttendanceSchema
+} from "@shared/schema";
 import { log } from "./vite";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
@@ -327,6 +332,196 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       log(`Error syncing to all services: ${error}`);
       res.status(500).json({ success: false, message: "Failed to sync habits to external services" });
+    }
+  });
+
+  // College Class Routes
+
+  // Get all college classes
+  router.get("/college/classes", async (req, res) => {
+    try {
+      const classes = await storage.getCollegeClasses();
+      res.json(classes);
+    } catch (error) {
+      log(`Error fetching college classes: ${error}`);
+      res.status(500).json({ message: "Failed to fetch college classes" });
+    }
+  });
+
+  // Get a specific college class
+  router.get("/college/classes/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid class ID" });
+      }
+
+      const collegeClass = await storage.getCollegeClass(id);
+      if (!collegeClass) {
+        return res.status(404).json({ message: "College class not found" });
+      }
+      
+      res.json(collegeClass);
+    } catch (error) {
+      log(`Error fetching college class: ${error}`);
+      res.status(500).json({ message: "Failed to fetch college class" });
+    }
+  });
+
+  // Create a new college class
+  router.post("/college/classes", async (req, res) => {
+    try {
+      const classData = insertCollegeClassSchema.parse(req.body);
+      const collegeClass = await storage.createCollegeClass(classData);
+      res.status(201).json(collegeClass);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({ message: validationError.message });
+      }
+      log(`Error creating college class: ${error}`);
+      res.status(500).json({ message: "Failed to create college class" });
+    }
+  });
+
+  // Update a college class
+  router.patch("/college/classes/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid class ID" });
+      }
+
+      const classData = insertCollegeClassSchema.partial().parse(req.body);
+      const collegeClass = await storage.updateCollegeClass(id, classData);
+      
+      if (!collegeClass) {
+        return res.status(404).json({ message: "College class not found" });
+      }
+      
+      res.json(collegeClass);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({ message: validationError.message });
+      }
+      log(`Error updating college class: ${error}`);
+      res.status(500).json({ message: "Failed to update college class" });
+    }
+  });
+
+  // Delete a college class
+  router.delete("/college/classes/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid class ID" });
+      }
+
+      const success = await storage.deleteCollegeClass(id);
+      if (!success) {
+        return res.status(404).json({ message: "College class not found" });
+      }
+      
+      res.status(204).end();
+    } catch (error) {
+      log(`Error deleting college class: ${error}`);
+      res.status(500).json({ message: "Failed to delete college class" });
+    }
+  });
+
+  // Class Attendance Routes
+
+  // Get class attendance records with optional filters
+  router.get("/college/attendance", async (req, res) => {
+    try {
+      const classId = req.query.classId ? parseInt(req.query.classId as string) : undefined;
+      const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
+      const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
+      
+      if (classId !== undefined && isNaN(classId)) {
+        return res.status(400).json({ message: "Invalid class ID" });
+      }
+      
+      if (startDate && isNaN(startDate.getTime()) || endDate && isNaN(endDate.getTime())) {
+        return res.status(400).json({ message: "Invalid date format" });
+      }
+
+      const records = await storage.getClassAttendanceRecords(classId, startDate, endDate);
+      res.json(records);
+    } catch (error) {
+      log(`Error fetching class attendance records: ${error}`);
+      res.status(500).json({ message: "Failed to fetch class attendance records" });
+    }
+  });
+
+  // Create or update an attendance record
+  router.post("/college/attendance", async (req, res) => {
+    try {
+      // First, ensure data is valid
+      const recordData = insertClassAttendanceSchema.parse(req.body);
+      
+      // Check if a record already exists for this class and date
+      const existingRecord = await storage.getClassAttendance(
+        recordData.classId, 
+        new Date(recordData.date)
+      );
+      
+      let record;
+      
+      if (existingRecord) {
+        // Update the existing record
+        record = await storage.updateClassAttendance(existingRecord.id, recordData);
+      } else {
+        // Create a new record
+        record = await storage.createClassAttendance(recordData);
+      }
+      
+      res.status(201).json(record);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({ message: validationError.message });
+      }
+      log(`Error creating/updating class attendance record: ${error}`);
+      res.status(500).json({ message: "Failed to create/update class attendance record" });
+    }
+  });
+
+  // Update an attendance record
+  router.patch("/college/attendance/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid record ID" });
+      }
+
+      const recordData = insertClassAttendanceSchema.partial().parse(req.body);
+      const record = await storage.updateClassAttendance(id, recordData);
+      
+      if (!record) {
+        return res.status(404).json({ message: "Attendance record not found" });
+      }
+      
+      res.json(record);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({ message: validationError.message });
+      }
+      log(`Error updating attendance record: ${error}`);
+      res.status(500).json({ message: "Failed to update attendance record" });
+    }
+  });
+
+  // Get attendance statistics
+  router.get("/college/attendance/stats", async (req, res) => {
+    try {
+      const stats = await storage.getAttendanceStats();
+      res.json(stats);
+    } catch (error) {
+      log(`Error fetching attendance stats: ${error}`);
+      res.status(500).json({ message: "Failed to fetch attendance statistics" });
     }
   });
 
