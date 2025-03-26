@@ -57,3 +57,45 @@ export const insertHabitRecordSchema = createInsertSchema(habitRecords).omit({
 
 export type InsertHabitRecord = z.infer<typeof insertHabitRecordSchema>;
 export type HabitRecord = typeof habitRecords.$inferSelect;
+
+// College classes tracking feature
+export const collegeDays = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
+export type CollegeDay = typeof collegeDays[number];
+
+// Define the college classes table
+export const collegeClasses = pgTable("college_classes", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  courseCode: text("course_code").notNull(),
+  instructor: text("instructor"),
+  dayOfWeek: text("day_of_week").notNull().$type<CollegeDay>(),
+  startTime: text("start_time").notNull(), // Format: "HH:MM"
+  endTime: text("end_time").notNull(), // Format: "HH:MM"
+  location: text("location"),
+  colorTag: text("color_tag").notNull().$type<HabitColor>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertCollegeClassSchema = createInsertSchema(collegeClasses).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertCollegeClass = z.infer<typeof insertCollegeClassSchema>;
+export type CollegeClass = typeof collegeClasses.$inferSelect;
+
+// Define the class attendance table
+export const classAttendance = pgTable("class_attendance", {
+  id: serial("id").primaryKey(),
+  classId: integer("class_id").notNull(),
+  date: timestamp("date").notNull(),
+  attended: boolean("attended").notNull(), // true = attended, false = skipped
+  notes: text("notes"),
+});
+
+export const insertClassAttendanceSchema = createInsertSchema(classAttendance).omit({
+  id: true,
+});
+
+export type InsertClassAttendance = z.infer<typeof insertClassAttendanceSchema>;
+export type ClassAttendance = typeof classAttendance.$inferSelect;
