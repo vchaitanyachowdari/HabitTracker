@@ -1,16 +1,30 @@
-import { pgTable, text, serial, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// Define the notification settings schema
+export const notificationSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  phoneNumber: z.string().optional(),
+  notifyBeforeClass: z.boolean().default(false),
+  notifyMissedClass: z.boolean().default(false),
+  reminderTime: z.number().min(5).max(60).default(30).optional(), // minutes before class
+});
+
+export type NotificationSettings = z.infer<typeof notificationSettingsSchema>;
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
+  notificationSettings: jsonb("notification_settings").$type<NotificationSettings>(),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
+}).extend({
+  notificationSettings: notificationSettingsSchema.optional(),
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
