@@ -3,13 +3,18 @@ import {
   habitRecords, type HabitRecord, type InsertHabitRecord, 
   users, type User, type InsertUser,
   collegeClasses, type CollegeClass, type InsertCollegeClass,
-  classAttendance, type ClassAttendance, type InsertClassAttendance
+  classAttendance, type ClassAttendance, type InsertClassAttendance,
+  type NotificationSettings
 } from "@shared/schema";
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  
+  // User notification settings
+  getNotificationSettings(userId: number): Promise<NotificationSettings | undefined>;
+  updateNotificationSettings(userId: number, settings: NotificationSettings): Promise<NotificationSettings | undefined>;
   
   // Habit CRUD operations
   getHabits(): Promise<Habit[]>;
@@ -210,9 +215,43 @@ export class MemStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = this.userId++;
-    const user: User = { ...insertUser, id };
+    // Set default notification settings if not provided
+    const defaultNotificationSettings = {
+      enabled: false,
+      phoneNumber: undefined,
+      notifyBeforeClass: false,
+      notifyMissedClass: false,
+      reminderTime: 30
+    };
+    
+    const user: User = { 
+      ...insertUser, 
+      id,
+      notificationSettings: insertUser.notificationSettings ?? defaultNotificationSettings
+    };
+    
     this.users.set(id, user);
     return user;
+  }
+  
+  // Notification settings methods
+  async getNotificationSettings(userId: number): Promise<NotificationSettings | undefined> {
+    const user = await this.getUser(userId);
+    return user?.notificationSettings;
+  }
+  
+  async updateNotificationSettings(userId: number, settings: NotificationSettings): Promise<NotificationSettings | undefined> {
+    const user = await this.getUser(userId);
+    if (!user) return undefined;
+    
+    // Update user with new notification settings
+    const updatedUser: User = {
+      ...user,
+      notificationSettings: settings
+    };
+    
+    this.users.set(userId, updatedUser);
+    return updatedUser.notificationSettings;
   }
 
   // Habit methods

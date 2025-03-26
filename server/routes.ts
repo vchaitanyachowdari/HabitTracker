@@ -5,7 +5,8 @@ import {
   insertHabitSchema, 
   insertHabitRecordSchema,
   insertCollegeClassSchema,
-  insertClassAttendanceSchema
+  insertClassAttendanceSchema,
+  notificationSettingsSchema
 } from "@shared/schema";
 import { log } from "./vite";
 import { ZodError } from "zod";
@@ -522,6 +523,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       log(`Error fetching attendance stats: ${error}`);
       res.status(500).json({ message: "Failed to fetch attendance statistics" });
+    }
+  });
+  
+  // Notification Settings Routes
+  
+  // Get notification settings for a user
+  router.get("/notification-settings/:userId", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      if (isNaN(userId)) {
+        return res.status(400).json({ message: "Invalid user ID" });
+      }
+      
+      const settings = await storage.getNotificationSettings(userId);
+      if (!settings) {
+        return res.status(404).json({ message: "Notification settings not found" });
+      }
+      
+      res.json(settings);
+    } catch (error) {
+      log(`Error fetching notification settings: ${error}`);
+      res.status(500).json({ message: "Failed to fetch notification settings" });
+    }
+  });
+  
+  // Update notification settings for a user
+  router.patch("/notification-settings/:userId", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      if (isNaN(userId)) {
+        return res.status(400).json({ message: "Invalid user ID" });
+      }
+      
+      const settingsData = notificationSettingsSchema.parse(req.body);
+      const settings = await storage.updateNotificationSettings(userId, settingsData);
+      
+      if (!settings) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      res.json(settings);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({ message: validationError.message });
+      }
+      log(`Error updating notification settings: ${error}`);
+      res.status(500).json({ message: "Failed to update notification settings" });
+    }
+  });
+  
+  // Check notification service status
+  router.get("/notification-service/status", async (req, res) => {
+    try {
+      // Import notification service here to avoid circular dependencies
+      const { notificationService } = await import("./services/notification");
+      const isEnabled = notificationService.isServiceEnabled();
+      
+      res.json({
+        enabled: isEnabled,
+        message: isEnabled 
+          ? "WhatsApp notification service is available" 
+          : "WhatsApp notification service is not available. Make sure you've provided the required Twilio credentials."
+      });
+    } catch (error) {
+      log(`Error checking notification service status: ${error}`);
+      res.status(500).json({ message: "Failed to check notification service status" });
     }
   });
 
