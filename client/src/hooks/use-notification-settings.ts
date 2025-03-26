@@ -19,7 +19,7 @@ export function useNotificationSettings(userId: number = DEFAULT_USER_ID) {
     isError,
     error
   } = useQuery({
-    queryKey: ['/api/users', userId, 'notification-settings'],
+    queryKey: ['/api/notification-settings', userId],
     enabled: !!userId,
   });
 
@@ -43,8 +43,8 @@ export function useNotificationSettings(userId: number = DEFAULT_USER_ID) {
     error: updateError
   } = useMutation({
     mutationFn: (newSettings: NotificationSettings) => 
-      apiRequest('/api/users/' + userId + '/notification-settings', {
-        method: 'POST',
+      apiRequest('/api/notification-settings/' + userId, {
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -52,7 +52,7 @@ export function useNotificationSettings(userId: number = DEFAULT_USER_ID) {
       }),
     onSuccess: () => {
       // Invalidate queries to refetch data
-      queryClient.invalidateQueries({ queryKey: ['/api/users', userId, 'notification-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notification-settings', userId] });
     },
   });
 

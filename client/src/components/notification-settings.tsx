@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNotificationSettings } from '@/hooks/use-notification-settings';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -34,7 +34,7 @@ export default function NotificationSettings() {
   });
 
   // Update form when settings are loaded
-  useState(() => {
+  useEffect(() => {
     if (settings) {
       setFormValues({
         enabled: settings.enabled || false,
@@ -44,7 +44,7 @@ export default function NotificationSettings() {
         reminderTime: settings.reminderTime || 30,
       });
     }
-  });
+  }, [settings]);
 
   // Handle form submission
   const handleSubmit = (e: React.FormEvent) => {
