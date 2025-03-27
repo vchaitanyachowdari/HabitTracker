@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -9,10 +9,12 @@ import Calendar from "@/pages/calendar";
 import Statistics from "@/pages/statistics";
 import College from "@/pages/college";
 import Settings from "@/pages/settings";
+import Login from "@/pages/login";
 import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/sidebar";
 import { TopNav } from "@/components/top-nav";
 import { MobileNav } from "@/components/mobile-nav";
+import { ProtectedRoute } from "@/components/protected-route";
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
@@ -40,52 +42,87 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 }
 
 function Router() {
+  const [location] = useLocation();
+  
+  // Check if the current route is the login page
+  const isLoginPage = location === '/login';
+  
   return (
     <Switch>
+      {/* Login page (public) */}
+      <Route path="/login" component={Login} />
+      
+      {/* Protected routes */}
       <Route path="/">
         {() => (
-          <AppLayout>
-            <Dashboard />
-          </AppLayout>
+          <ProtectedRoute>
+            <AppLayout>
+              <Dashboard />
+            </AppLayout>
+          </ProtectedRoute>
+        )}
+      </Route>
+      <Route path="/dashboard">
+        {() => (
+          <ProtectedRoute>
+            <AppLayout>
+              <Dashboard />
+            </AppLayout>
+          </ProtectedRoute>
         )}
       </Route>
       <Route path="/habits">
         {() => (
-          <AppLayout>
-            <Habits />
-          </AppLayout>
+          <ProtectedRoute>
+            <AppLayout>
+              <Habits />
+            </AppLayout>
+          </ProtectedRoute>
         )}
       </Route>
       <Route path="/calendar">
         {() => (
-          <AppLayout>
-            <Calendar />
-          </AppLayout>
+          <ProtectedRoute>
+            <AppLayout>
+              <Calendar />
+            </AppLayout>
+          </ProtectedRoute>
         )}
       </Route>
       <Route path="/statistics">
         {() => (
-          <AppLayout>
-            <Statistics />
-          </AppLayout>
+          <ProtectedRoute>
+            <AppLayout>
+              <Statistics />
+            </AppLayout>
+          </ProtectedRoute>
         )}
       </Route>
       <Route path="/college">
         {() => (
-          <AppLayout>
-            <College />
-          </AppLayout>
+          <ProtectedRoute>
+            <AppLayout>
+              <College />
+            </AppLayout>
+          </ProtectedRoute>
         )}
       </Route>
       <Route path="/settings">
         {() => (
-          <AppLayout>
-            <Settings />
-          </AppLayout>
+          <ProtectedRoute>
+            <AppLayout>
+              <Settings />
+            </AppLayout>
+          </ProtectedRoute>
         )}
       </Route>
+      
       {/* Fallback to 404 */}
-      <Route component={NotFound} />
+      <Route>
+        {() => (
+          isLoginPage ? <Login /> : <NotFound />
+        )}
+      </Route>
     </Switch>
   );
 }

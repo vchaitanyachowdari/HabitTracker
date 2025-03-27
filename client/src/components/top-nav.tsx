@@ -1,10 +1,12 @@
-import { Bell, Menu, Search, Plus, Calendar, ChevronDown } from "lucide-react";
+import { Bell, Menu, Search, Plus, Calendar, ChevronDown, LogOut, User, Settings as SettingsIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/date-utils";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useLocation } from "wouter";
+import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
 
 interface TopNavProps {
   isSidebarOpen: boolean;
@@ -14,7 +16,9 @@ interface TopNavProps {
 export function TopNav({ isSidebarOpen, setSidebarOpen }: TopNavProps) {
   const today = new Date();
   const formattedDate = formatDate(today);
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
+  const { user, logout } = useAuth();
+  const { toast } = useToast();
   
   // Get page title based on current location
   const getPageTitle = () => {
@@ -27,6 +31,17 @@ export function TopNav({ isSidebarOpen, setSidebarOpen }: TopNavProps) {
     
     // Default fallback
     return "Dashboard";
+  };
+  
+  // Handle user logout
+  const handleLogout = () => {
+    logout();
+    toast({
+      title: "Logged out",
+      description: "You have been successfully logged out.",
+      variant: "default",
+    });
+    setLocation('/login');
   };
   
   return (
@@ -110,7 +125,7 @@ export function TopNav({ isSidebarOpen, setSidebarOpen }: TopNavProps) {
                 <Avatar className="h-9 w-9 border-2 border-primary cursor-pointer">
                   <AvatarImage src="" alt="User" />
                   <AvatarFallback className="bg-gradient-to-br from-primary/80 to-purple-600/80 text-white">
-                    JD
+                    {user?.username ? user.username.substring(0, 2).toUpperCase() : 'U'}
                   </AvatarFallback>
                 </Avatar>
               </Button>
@@ -118,20 +133,35 @@ export function TopNav({ isSidebarOpen, setSidebarOpen }: TopNavProps) {
             <DropdownMenuContent align="end" className="w-56">
               <div className="flex items-center justify-start gap-2 p-2">
                 <div className="flex flex-col space-y-1 leading-none">
-                  <p className="font-medium">John Doe</p>
+                  <p className="font-medium">{user?.username || 'User'}</p>
                   <p className="w-[200px] truncate text-sm text-slate-500 dark:text-slate-400">
-                    john.doe@example.com
+                    {user?.id ? `ID: ${user.id}` : 'Not logged in'}
                   </p>
                 </div>
               </div>
-              <DropdownMenuItem className="cursor-pointer">
-                Profile
+              
+              <DropdownMenuItem 
+                className="cursor-pointer"
+                onClick={() => setLocation('/settings')}
+              >
+                <User className="mr-2 h-4 w-4" />
+                <span>Profile</span>
               </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer">
-                Settings
+              
+              <DropdownMenuItem 
+                className="cursor-pointer"
+                onClick={() => setLocation('/settings')}
+              >
+                <SettingsIcon className="mr-2 h-4 w-4" />
+                <span>Settings</span>
               </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer">
-                Log out
+              
+              <DropdownMenuItem 
+                className="cursor-pointer text-red-500 focus:text-red-500"
+                onClick={handleLogout}
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Log out</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

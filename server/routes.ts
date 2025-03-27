@@ -8,12 +8,15 @@ import {
   insertClassAttendanceSchema,
   notificationSettingsSchema,
   insertHabitCategorySchema,
-  insertHabitTagSchema
+  insertHabitTagSchema,
+  insertUserSchema
 } from "@shared/schema";
 import { log } from "./vite";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { calendarIntegrations } from "./integrations";
+import { authService } from "./services/auth";
+import { authenticateJWT, optionalAuthenticateJWT } from "./middleware/auth";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const router = express.Router();
@@ -530,13 +533,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Notification Settings Routes
   
-  // Get notification settings for a user
-  router.get("/notification-settings/:userId", async (req, res) => {
+  // Get notification settings for the authenticated user
+  router.get("/notification-settings", authenticateJWT, async (req, res) => {
     try {
-      const userId = parseInt(req.params.userId);
-      if (isNaN(userId)) {
-        return res.status(400).json({ message: "Invalid user ID" });
-      }
+      const userId = req.userId;
       
       const settings = await storage.getNotificationSettings(userId);
       if (!settings) {
@@ -550,13 +550,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Update notification settings for a user
-  router.patch("/notification-settings/:userId", async (req, res) => {
+  // Update notification settings for the authenticated user
+  router.patch("/notification-settings", authenticateJWT, async (req, res) => {
     try {
-      const userId = parseInt(req.params.userId);
-      if (isNaN(userId)) {
-        return res.status(400).json({ message: "Invalid user ID" });
-      }
+      const userId = req.userId;
       
       const settingsData = notificationSettingsSchema.parse(req.body);
       const settings = await storage.updateNotificationSettings(userId, settingsData);
@@ -810,6 +807,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       log(`Error fetching habits by tag: ${error}`);
       res.status(500).json({ message: "Failed to fetch habits by tag" });
+    }
+  });
+
+  // Authentication Routes
+
+  // Register a new user
+  router.post("/auth/register", async (req, res) => {
+    try {
+      // Validate user data
+      const userData = insertUserSchema.parse(req.body);
+      
+      // Register the user
+      const user = await authService.register(userData);
+      
+      // Generate an authentication token
+      const token = authService.generateToken(user);
+      
+      // Return the user data and token
+      res.status(201).json({ 
+        user: { 
+          id: user.id, 
+          username: user.username,
+          notificationSettings: user.notificationSettings
+        }, 
+        token 
+      });
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({ message: validationError.message });
+      }
+      
+      if (error.message === 'Username already exists') {
+        return res.status(409).json({ message: error.message });
+      }
+      
+      log(`Error registering user: ${error}`);
+      res.status(500).json({ message: "Failed to register user" });
+    }
+  });
+  
+  // Login
+  router.post("/auth/login", async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      
+      if (!username || !password) {
+        return res.status(400).json({ message: "Username and password are required" });
+      }
+      
+      // Authenticate the user
+      const { user, token } = await authService.login(username, password);
+      
+      // Return the user data and token
+      res.json({ 
+        user: { 
+          id: user.id, 
+          username: user.username,
+          notificationSettings: user.notificationSettings
+        }, 
+        token 
+      });
+    } catch (error) {
+      if (error.message === 'Invalid username or password') {
+        return res.status(401).json({ message: error.message });
+      }
+      
+      log(`Error during login: ${error}`);
+      res.status(500).json({ message: "Failed to login" });
+    }
+  });
+  
+  // Get current user data
+  router.get("/auth/me", authenticateJWT, async (req, res) => {
+    try {
+      // The user data is already attached to the request by the authenticateJWT middleware
+      const userId = req.userId;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Return the user data
+      res.json({ 
+        id: user.id, 
+        username: user.username,
+        notificationSettings: user.notificationSettings
+      });
+    } catch (error) {
+      log(`Error fetching user data: ${error}`);
+      res.status(500).json({ message: "Failed to fetch user data" });
     }
   });
 
