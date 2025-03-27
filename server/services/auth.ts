@@ -59,10 +59,20 @@ export class AuthService {
   /**
    * Generate a JWT token for a user
    */
-  generateToken(user: User): string {
+  generateToken(userOrId: User | number): string {
+    let userId: number;
+    let username: string = '';
+    
+    if (typeof userOrId === 'number') {
+      userId = userOrId;
+    } else {
+      userId = userOrId.id;
+      username = userOrId.username;
+    }
+    
     const payload: AuthToken = {
-      userId: user.id,
-      username: user.username,
+      userId,
+      username,
     };
 
     return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });

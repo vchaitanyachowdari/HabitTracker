@@ -7,6 +7,10 @@ import {
   type NotificationSettings,
   habitCategories, type HabitCategory, type InsertHabitCategory,
   habitTags, type HabitTag, type InsertHabitTag,
+  meetings, type Meeting, type InsertMeeting,
+  meetingParticipants, type MeetingParticipant, type InsertMeetingParticipant,
+  meetingTemplates, type MeetingTemplate, type InsertMeetingTemplate,
+  type MeetingPlatform, type MeetingType, type MeetingStatus,
   defaultHabitCategories
 } from "@shared/schema";
 
@@ -63,6 +67,33 @@ export interface IStorage {
   
   // College statistics
   getAttendanceStats(): Promise<{ attended: number, skipped: number, total: number }>;
+  
+  // Meeting operations
+  getMeetings(userId?: number, startDate?: Date, endDate?: Date): Promise<Meeting[]>;
+  getMeeting(id: number): Promise<Meeting | undefined>;
+  getMeetingsByPlatform(platform: MeetingPlatform): Promise<Meeting[]>;
+  getMeetingsByType(meetingType: MeetingType): Promise<Meeting[]>;
+  getMeetingsByStatus(status: MeetingStatus): Promise<Meeting[]>;
+  getMeetingsByRelatedHabit(habitId: number): Promise<Meeting[]>;
+  getMeetingsByRelatedClass(classId: number): Promise<Meeting[]>;
+  createMeeting(meeting: InsertMeeting): Promise<Meeting>;
+  updateMeeting(id: number, meeting: Partial<InsertMeeting>): Promise<Meeting | undefined>;
+  deleteMeeting(id: number): Promise<boolean>;
+  
+  // Meeting participants
+  getMeetingParticipants(meetingId: number): Promise<MeetingParticipant[]>;
+  getMeetingParticipant(id: number): Promise<MeetingParticipant | undefined>;
+  addMeetingParticipant(participant: InsertMeetingParticipant): Promise<MeetingParticipant>;
+  updateMeetingParticipant(id: number, participant: Partial<InsertMeetingParticipant>): Promise<MeetingParticipant | undefined>;
+  removeMeetingParticipant(id: number): Promise<boolean>;
+  
+  // Meeting templates
+  getMeetingTemplates(userId: number): Promise<MeetingTemplate[]>;
+  getMeetingTemplate(id: number): Promise<MeetingTemplate | undefined>;
+  createMeetingTemplate(template: InsertMeetingTemplate): Promise<MeetingTemplate>;
+  updateMeetingTemplate(id: number, template: Partial<InsertMeetingTemplate>): Promise<MeetingTemplate | undefined>;
+  deleteMeetingTemplate(id: number): Promise<boolean>;
+  createMeetingFromTemplate(templateId: number, startTime: Date, additionalData?: Partial<InsertMeeting>): Promise<Meeting>;
 }
 
 export class MemStorage implements IStorage {
@@ -73,6 +104,9 @@ export class MemStorage implements IStorage {
   private habitTags: Map<number, HabitTag>;
   private collegeClasses: Map<number, CollegeClass>;
   private classAttendances: Map<number, ClassAttendance>;
+  private meetings: Map<number, Meeting>;
+  private meetingParticipants: Map<number, MeetingParticipant>;
+  private meetingTemplates: Map<number, MeetingTemplate>;
   private userId: number;
   private habitId: number;
   private recordId: number;
@@ -80,6 +114,9 @@ export class MemStorage implements IStorage {
   private tagId: number;
   private collegeClassId: number;
   private classAttendanceId: number;
+  private meetingId: number;
+  private meetingParticipantId: number;
+  private meetingTemplateId: number;
 
   constructor() {
     this.users = new Map();
@@ -89,6 +126,9 @@ export class MemStorage implements IStorage {
     this.habitTags = new Map();
     this.collegeClasses = new Map();
     this.classAttendances = new Map();
+    this.meetings = new Map();
+    this.meetingParticipants = new Map();
+    this.meetingTemplates = new Map();
     this.userId = 1;
     this.habitId = 1;
     this.recordId = 1;
@@ -96,6 +136,9 @@ export class MemStorage implements IStorage {
     this.tagId = 1;
     this.collegeClassId = 1;
     this.classAttendanceId = 1;
+    this.meetingId = 1;
+    this.meetingParticipantId = 1;
+    this.meetingTemplateId = 1;
 
     // Add some initial habits for demonstration
     // We need to use Promise.resolve because we can't make the constructor async
@@ -319,6 +362,204 @@ export class MemStorage implements IStorage {
         }
       }
     }
+
+    // Create a default user for testing
+    const defaultUser = await this.createUser({
+      username: "user",
+      password: "$2a$10$VWXUSwYZ.4dlSLCM84gkTeJLXLMeWXKYT1jl.8BEG3c.RVh.DP8w2", // "password"
+      email: "user@example.com",
+      name: "Default User",
+      notificationSettings: {
+        enabled: false,
+        phoneNumber: null,
+        notifyBeforeClass: false,
+        notifyMissedClass: false,
+        reminderTime: 30
+      }
+    });
+
+    // Create example meeting templates
+    const exampleTemplates: InsertMeetingTemplate[] = [
+      {
+        name: "Quick Check-in",
+        description: "15-minute check-in meeting",
+        platform: "zoom",
+        meetingType: "one_on_one",
+        duration: 15,
+        meetingUrlTemplate: "https://zoom.us/j/{meetingId}",
+        colorTag: "primary",
+        reminderEnabled: true,
+        reminderTime: 5,
+        notes: "Standard check-in template",
+        userId: defaultUser.id
+      },
+      {
+        name: "Team Standup",
+        description: "Daily team standup meeting",
+        platform: "google_meet",
+        meetingType: "group",
+        duration: 30,
+        meetingUrlTemplate: "https://meet.google.com/{meetingId}",
+        colorTag: "secondary",
+        reminderEnabled: true,
+        reminderTime: 10,
+        notes: "Daily team coordination meeting",
+        userId: defaultUser.id
+      },
+      {
+        name: "Workout Session",
+        description: "Virtual workout with trainer",
+        platform: "zoom",
+        meetingType: "workshop",
+        duration: 60,
+        meetingUrlTemplate: "https://zoom.us/j/{meetingId}",
+        colorTag: "accent",
+        reminderEnabled: true,
+        reminderTime: 15,
+        notes: "Have workout clothes ready",
+        userId: defaultUser.id
+      }
+    ];
+
+    // Create meeting templates
+    const createdTemplates: MeetingTemplate[] = [];
+    for (const template of exampleTemplates) {
+      const createdTemplate = await this.createMeetingTemplate(template);
+      createdTemplates.push(createdTemplate);
+    }
+
+    // Create example meetings
+    // Some in the past, some in the future
+    const exampleMeetings: InsertMeeting[] = [
+      {
+        title: "Weekly Study Group",
+        description: "Study group for CS101 class",
+        platform: "zoom",
+        meetingType: "group",
+        status: "scheduled",
+        startTime: new Date(today.getTime() + 24 * 60 * 60 * 1000), // Tomorrow
+        endTime: new Date(today.getTime() + 24 * 60 * 60 * 1000 + 90 * 60 * 1000), // 1.5 hours later
+        meetingUrl: "https://zoom.us/j/123456789",
+        meetingId: "123456789",
+        password: "password123",
+        hostUserId: defaultUser.id,
+        colorTag: "primary",
+        reminderEnabled: true,
+        reminderTime: 15,
+        notes: "Bring questions about last week's lecture",
+        relatedClassId: createdClasses[0].id // Related to CS101
+      },
+      {
+        title: "Workout Session",
+        description: "Virtual workout with fitness group",
+        platform: "zoom",
+        meetingType: "workshop",
+        status: "scheduled",
+        startTime: new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000), // Day after tomorrow
+        endTime: new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000 + 60 * 60 * 1000), // 1 hour later
+        meetingUrl: "https://zoom.us/j/987654321",
+        meetingId: "987654321",
+        password: null,
+        hostUserId: defaultUser.id,
+        colorTag: "secondary",
+        reminderEnabled: true,
+        reminderTime: 10,
+        notes: "Focus on strength training",
+        relatedHabitId: createdHabits[0].id // Related to Morning Workout
+      },
+      {
+        title: "Meditation Group",
+        description: "Group meditation session",
+        platform: "google_meet",
+        meetingType: "group",
+        status: "scheduled",
+        startTime: new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
+        endTime: new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000 + 30 * 60 * 1000), // 30 mins later
+        meetingUrl: "https://meet.google.com/abc-defg-hij",
+        meetingId: "abc-defg-hij",
+        password: null,
+        hostUserId: defaultUser.id,
+        colorTag: "accent",
+        reminderEnabled: true,
+        reminderTime: 15,
+        notes: "Beginners welcome",
+        relatedHabitId: createdHabits[2].id // Related to Meditate habit
+      },
+      {
+        title: "Study Session",
+        description: "Preparation for midterm exam",
+        platform: "zoom",
+        meetingType: "group",
+        status: "completed",
+        startTime: new Date(today.getTime() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
+        endTime: new Date(today.getTime() - 2 * 24 * 60 * 60 * 1000 + 120 * 60 * 1000), // 2 hours later
+        meetingUrl: "https://zoom.us/j/111222333",
+        meetingId: "111222333",
+        password: "study123",
+        hostUserId: defaultUser.id,
+        colorTag: "danger",
+        reminderEnabled: true,
+        reminderTime: 15,
+        notes: "Completed - covered chapters 1-5",
+        relatedClassId: createdClasses[1].id // Related to Calculus
+      },
+      {
+        title: "Reading Discussion",
+        description: "Book club meeting",
+        platform: "google_meet",
+        meetingType: "group",
+        status: "canceled",
+        startTime: new Date(today.getTime() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
+        endTime: new Date(today.getTime() - 5 * 24 * 60 * 60 * 1000 + 60 * 60 * 1000), // 1 hour later
+        meetingUrl: "https://meet.google.com/jkl-mnop-qrs",
+        meetingId: "jkl-mnop-qrs",
+        password: null,
+        hostUserId: defaultUser.id,
+        colorTag: "purple",
+        reminderEnabled: false,
+        reminderTime: 15,
+        notes: "Canceled due to low attendance",
+        relatedHabitId: createdHabits[1].id // Related to Reading habit
+      }
+    ];
+
+    // Create meetings
+    const createdMeetings: Meeting[] = [];
+    for (const meeting of exampleMeetings) {
+      const createdMeeting = await this.createMeeting(meeting);
+      createdMeetings.push(createdMeeting);
+
+      // Add some participants for each meeting
+      if (meeting.status !== "canceled") {
+        const participantNames = [
+          "Alice Johnson",
+          "Bob Smith",
+          "Charlie Brown",
+          "Diana Prince",
+          "Edward Nygma"
+        ];
+
+        for (let i = 0; i < 3; i++) { // Add 3 participants per meeting
+          await this.addMeetingParticipant({
+            meetingId: createdMeeting.id,
+            name: participantNames[i],
+            email: `${participantNames[i].toLowerCase().replace(' ', '.')}@example.com`,
+            status: i === 0 ? "confirmed" : "pending",
+            notificationSent: true
+          });
+        }
+      }
+    }
+
+    // Create a meeting from template as an example
+    const templateMeeting = await this.createMeetingFromTemplate(
+      createdTemplates[0].id, // Quick Check-in template
+      new Date(today.getTime() + 4 * 24 * 60 * 60 * 1000), // 4 days from now
+      {
+        title: "Quick Workout Check-in", 
+        relatedHabitId: createdHabits[0].id // Related to Morning Workout
+      }
+    );
   }
 
   // User methods
@@ -729,6 +970,230 @@ export class MemStorage implements IStorage {
     return Array.from(this.habits.values()).filter(habit => 
       'tags' in habit && Array.isArray((habit as any).tags) && (habit as any).tags.includes(tagId)
     );
+  }
+
+  // Meeting methods
+  async getMeetings(userId?: number, startDate?: Date, endDate?: Date): Promise<Meeting[]> {
+    let meetings = Array.from(this.meetings.values());
+    
+    if (userId !== undefined) {
+      meetings = meetings.filter(meeting => meeting.hostUserId === userId);
+    }
+    
+    if (startDate) {
+      meetings = meetings.filter(meeting => new Date(meeting.startTime) >= startDate);
+    }
+    
+    if (endDate) {
+      meetings = meetings.filter(meeting => new Date(meeting.startTime) <= endDate);
+    }
+    
+    return meetings;
+  }
+
+  async getMeeting(id: number): Promise<Meeting | undefined> {
+    return this.meetings.get(id);
+  }
+
+  async getMeetingsByPlatform(platform: MeetingPlatform): Promise<Meeting[]> {
+    return Array.from(this.meetings.values()).filter(meeting => meeting.platform === platform);
+  }
+
+  async getMeetingsByType(meetingType: MeetingType): Promise<Meeting[]> {
+    return Array.from(this.meetings.values()).filter(meeting => meeting.meetingType === meetingType);
+  }
+
+  async getMeetingsByStatus(status: MeetingStatus): Promise<Meeting[]> {
+    return Array.from(this.meetings.values()).filter(meeting => meeting.status === status);
+  }
+
+  async getMeetingsByRelatedHabit(habitId: number): Promise<Meeting[]> {
+    return Array.from(this.meetings.values()).filter(meeting => meeting.relatedHabitId === habitId);
+  }
+
+  async getMeetingsByRelatedClass(classId: number): Promise<Meeting[]> {
+    return Array.from(this.meetings.values()).filter(meeting => meeting.relatedClassId === classId);
+  }
+
+  async createMeeting(insertMeeting: InsertMeeting): Promise<Meeting> {
+    const id = this.meetingId++;
+    const now = new Date();
+    
+    const meeting: Meeting = {
+      id,
+      title: insertMeeting.title,
+      description: insertMeeting.description ?? null,
+      platform: insertMeeting.platform,
+      meetingType: insertMeeting.meetingType,
+      status: insertMeeting.status ?? "scheduled",
+      startTime: insertMeeting.startTime,
+      endTime: insertMeeting.endTime,
+      meetingUrl: insertMeeting.meetingUrl ?? null,
+      meetingId: insertMeeting.meetingId ?? null,
+      password: insertMeeting.password ?? null,
+      hostUserId: insertMeeting.hostUserId,
+      colorTag: insertMeeting.colorTag ?? "primary",
+      reminderEnabled: insertMeeting.reminderEnabled ?? true,
+      reminderTime: insertMeeting.reminderTime ?? 15,
+      notes: insertMeeting.notes ?? null,
+      relatedHabitId: insertMeeting.relatedHabitId ?? null,
+      relatedClassId: insertMeeting.relatedClassId ?? null,
+      createdAt: now,
+      updatedAt: now
+    };
+    
+    this.meetings.set(id, meeting);
+    return meeting;
+  }
+
+  async updateMeeting(id: number, meetingUpdate: Partial<InsertMeeting>): Promise<Meeting | undefined> {
+    const meeting = this.meetings.get(id);
+    if (!meeting) return undefined;
+
+    const updatedMeeting: Meeting = {
+      ...meeting,
+      ...meetingUpdate,
+      updatedAt: new Date()
+    };
+    
+    this.meetings.set(id, updatedMeeting);
+    return updatedMeeting;
+  }
+
+  async deleteMeeting(id: number): Promise<boolean> {
+    return this.meetings.delete(id);
+  }
+
+  // Meeting participant methods
+  async getMeetingParticipants(meetingId: number): Promise<MeetingParticipant[]> {
+    return Array.from(this.meetingParticipants.values()).filter(
+      participant => participant.meetingId === meetingId
+    );
+  }
+
+  async getMeetingParticipant(id: number): Promise<MeetingParticipant | undefined> {
+    return this.meetingParticipants.get(id);
+  }
+
+  async addMeetingParticipant(insertParticipant: InsertMeetingParticipant): Promise<MeetingParticipant> {
+    const id = this.meetingParticipantId++;
+    const now = new Date();
+    
+    const participant: MeetingParticipant = {
+      id,
+      meetingId: insertParticipant.meetingId,
+      userId: insertParticipant.userId ?? null,
+      name: insertParticipant.name ?? null,
+      email: insertParticipant.email ?? null,
+      status: insertParticipant.status ?? "pending",
+      notificationSent: insertParticipant.notificationSent ?? false,
+      joinedAt: insertParticipant.joinedAt ?? null,
+      leftAt: insertParticipant.leftAt ?? null,
+      createdAt: now
+    };
+    
+    this.meetingParticipants.set(id, participant);
+    return participant;
+  }
+
+  async updateMeetingParticipant(id: number, participantUpdate: Partial<InsertMeetingParticipant>): Promise<MeetingParticipant | undefined> {
+    const participant = this.meetingParticipants.get(id);
+    if (!participant) return undefined;
+
+    const updatedParticipant: MeetingParticipant = {
+      ...participant,
+      ...participantUpdate
+    };
+    
+    this.meetingParticipants.set(id, updatedParticipant);
+    return updatedParticipant;
+  }
+
+  async removeMeetingParticipant(id: number): Promise<boolean> {
+    return this.meetingParticipants.delete(id);
+  }
+
+  // Meeting template methods
+  async getMeetingTemplates(userId: number): Promise<MeetingTemplate[]> {
+    return Array.from(this.meetingTemplates.values()).filter(
+      template => template.userId === userId
+    );
+  }
+
+  async getMeetingTemplate(id: number): Promise<MeetingTemplate | undefined> {
+    return this.meetingTemplates.get(id);
+  }
+
+  async createMeetingTemplate(insertTemplate: InsertMeetingTemplate): Promise<MeetingTemplate> {
+    const id = this.meetingTemplateId++;
+    const now = new Date();
+    
+    const template: MeetingTemplate = {
+      id,
+      name: insertTemplate.name,
+      description: insertTemplate.description ?? null,
+      platform: insertTemplate.platform ?? null,
+      meetingType: insertTemplate.meetingType ?? null,
+      duration: insertTemplate.duration,
+      meetingUrlTemplate: insertTemplate.meetingUrlTemplate ?? null,
+      colorTag: insertTemplate.colorTag ?? "primary",
+      reminderEnabled: insertTemplate.reminderEnabled ?? true,
+      reminderTime: insertTemplate.reminderTime ?? 15,
+      notes: insertTemplate.notes ?? null,
+      userId: insertTemplate.userId,
+      createdAt: now
+    };
+    
+    this.meetingTemplates.set(id, template);
+    return template;
+  }
+
+  async updateMeetingTemplate(id: number, templateUpdate: Partial<InsertMeetingTemplate>): Promise<MeetingTemplate | undefined> {
+    const template = this.meetingTemplates.get(id);
+    if (!template) return undefined;
+
+    const updatedTemplate: MeetingTemplate = {
+      ...template,
+      ...templateUpdate
+    };
+    
+    this.meetingTemplates.set(id, updatedTemplate);
+    return updatedTemplate;
+  }
+
+  async deleteMeetingTemplate(id: number): Promise<boolean> {
+    return this.meetingTemplates.delete(id);
+  }
+
+  async createMeetingFromTemplate(templateId: number, startTime: Date, additionalData?: Partial<InsertMeeting>): Promise<Meeting> {
+    const template = await this.getMeetingTemplate(templateId);
+    if (!template) {
+      throw new Error(`Template with ID ${templateId} not found`);
+    }
+    
+    // Calculate end time based on template duration and provided start time
+    const endTime = new Date(startTime);
+    endTime.setMinutes(endTime.getMinutes() + template.duration);
+    
+    // Create meeting data from template
+    const meetingData: InsertMeeting = {
+      title: template.name,
+      description: template.description,
+      platform: template.platform as MeetingPlatform,
+      meetingType: template.meetingType as MeetingType,
+      startTime,
+      endTime,
+      hostUserId: template.userId,
+      colorTag: template.colorTag,
+      reminderEnabled: template.reminderEnabled,
+      reminderTime: template.reminderTime,
+      notes: template.notes,
+      meetingUrl: template.meetingUrlTemplate,
+      ...additionalData
+    };
+    
+    // Create the actual meeting
+    return this.createMeeting(meetingData);
   }
 }
 

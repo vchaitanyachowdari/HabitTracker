@@ -9,7 +9,10 @@ import {
   notificationSettingsSchema,
   insertHabitCategorySchema,
   insertHabitTagSchema,
-  insertUserSchema
+  insertUserSchema,
+  insertMeetingSchema,
+  insertMeetingParticipantSchema,
+  insertMeetingTemplateSchema
 } from "@shared/schema";
 import { log } from "./vite";
 import { ZodError } from "zod";
@@ -811,6 +814,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Authentication Routes
+  
+  // Test token endpoint - for development only
+  router.get("/auth/test-token", (req, res) => {
+    try {
+      // Create a token for user ID 1
+      const token = authService.generateToken(1);
+      res.json({ token });
+    } catch (error) {
+      log(`Error generating test token: ${error}`);
+      res.status(500).json({ message: "Failed to generate test token" });
+    }
+  });
 
   // Register a new user
   router.post("/auth/register", async (req, res) => {
@@ -899,6 +914,468 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       log(`Error fetching user data: ${error}`);
       res.status(500).json({ message: "Failed to fetch user data" });
+    }
+  });
+
+  // Meeting Routes
+
+  // Get all users (for testing only)
+  router.get("/users", async (req, res) => {
+    try {
+      // For testing only - in a real app we wouldn't expose this
+      const users = await Promise.all(Array.from({ length: 5 }).map(async (_, i) => {
+        const user = await storage.getUser(i + 1);
+        return user ? { id: user.id, username: user.username } : null;
+      }));
+      
+      res.json(users.filter(Boolean));
+    } catch (error) {
+      log(`Error fetching users: ${error}`);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+  
+  // Get a test token (for development purposes only)
+  router.get("/auth/test-token/:userId", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      if (isNaN(userId)) {
+        return res.status(400).json({ message: "Invalid user ID" });
+      }
+      
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Generate a token for the user
+      const token = authService.generateToken(userId);
+      
+      res.json({ 
+        token,
+        user: {
+          id: user.id,
+          username: user.username
+        }
+      });
+    } catch (error) {
+      log(`Error generating test token: ${error}`);
+      res.status(500).json({ message: "Failed to generate test token" });
+    }
+  });
+
+  // Get meetings with optional filters
+  router.get("/meetings", authenticateJWT, async (req, res) => {
+    try {
+      const userId = req.query.userId ? parseInt(req.query.userId as string) : undefined;
+      const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
+      const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
+      
+      if (userId !== undefined && isNaN(userId)) {
+        return res.status(400).json({ message: "Invalid user ID" });
+      }
+      
+      if (startDate && isNaN(startDate.getTime()) || endDate && isNaN(endDate.getTime())) {
+        return res.status(400).json({ message: "Invalid date format" });
+      }
+
+      const meetings = await storage.getMeetings(userId, startDate, endDate);
+      res.json(meetings);
+    } catch (error) {
+      log(`Error fetching meetings: ${error}`);
+      res.status(500).json({ message: "Failed to fetch meetings" });
+    }
+  });
+
+  // Get a specific meeting
+  router.get("/meetings/:id", authenticateJWT, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid meeting ID" });
+      }
+
+      const meeting = await storage.getMeeting(id);
+      if (!meeting) {
+        return res.status(404).json({ message: "Meeting not found" });
+      }
+      
+      res.json(meeting);
+    } catch (error) {
+      log(`Error fetching meeting: ${error}`);
+      res.status(500).json({ message: "Failed to fetch meeting" });
+    }
+  });
+
+  // Create a new meeting
+  router.post("/meetings", authenticateJWT, async (req, res) => {
+    try {
+      const meetingData = insertMeetingSchema.parse(req.body);
+      const meeting = await storage.createMeeting(meetingData);
+      res.status(201).json(meeting);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({ message: validationError.message });
+      }
+      log(`Error creating meeting: ${error}`);
+      res.status(500).json({ message: "Failed to create meeting" });
+    }
+  });
+
+  // Update a meeting
+  router.patch("/meetings/:id", authenticateJWT, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid meeting ID" });
+      }
+
+      const meetingData = insertMeetingSchema.partial().parse(req.body);
+      const meeting = await storage.updateMeeting(id, meetingData);
+      
+      if (!meeting) {
+        return res.status(404).json({ message: "Meeting not found" });
+      }
+      
+      res.json(meeting);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({ message: validationError.message });
+      }
+      log(`Error updating meeting: ${error}`);
+      res.status(500).json({ message: "Failed to update meeting" });
+    }
+  });
+
+  // Delete a meeting
+  router.delete("/meetings/:id", authenticateJWT, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid meeting ID" });
+      }
+
+      const success = await storage.deleteMeeting(id);
+      if (!success) {
+        return res.status(404).json({ message: "Meeting not found" });
+      }
+      
+      res.status(204).end();
+    } catch (error) {
+      log(`Error deleting meeting: ${error}`);
+      res.status(500).json({ message: "Failed to delete meeting" });
+    }
+  });
+
+  // Get meetings by platform
+  router.get("/meetings/platform/:platform", authenticateJWT, async (req, res) => {
+    try {
+      const platform = req.params.platform;
+      const meetings = await storage.getMeetingsByPlatform(platform as any);
+      res.json(meetings);
+    } catch (error) {
+      log(`Error fetching meetings by platform: ${error}`);
+      res.status(500).json({ message: "Failed to fetch meetings by platform" });
+    }
+  });
+
+  // Get meetings by type
+  router.get("/meetings/type/:type", authenticateJWT, async (req, res) => {
+    try {
+      const type = req.params.type;
+      const meetings = await storage.getMeetingsByType(type as any);
+      res.json(meetings);
+    } catch (error) {
+      log(`Error fetching meetings by type: ${error}`);
+      res.status(500).json({ message: "Failed to fetch meetings by type" });
+    }
+  });
+
+  // Get meetings by status
+  router.get("/meetings/status/:status", authenticateJWT, async (req, res) => {
+    try {
+      const status = req.params.status;
+      const meetings = await storage.getMeetingsByStatus(status as any);
+      res.json(meetings);
+    } catch (error) {
+      log(`Error fetching meetings by status: ${error}`);
+      res.status(500).json({ message: "Failed to fetch meetings by status" });
+    }
+  });
+
+  // Get meetings related to a habit
+  router.get("/habits/:habitId/meetings", authenticateJWT, async (req, res) => {
+    try {
+      const habitId = parseInt(req.params.habitId);
+      if (isNaN(habitId)) {
+        return res.status(400).json({ message: "Invalid habit ID" });
+      }
+      
+      const meetings = await storage.getMeetingsByRelatedHabit(habitId);
+      res.json(meetings);
+    } catch (error) {
+      log(`Error fetching meetings for habit: ${error}`);
+      res.status(500).json({ message: "Failed to fetch meetings for habit" });
+    }
+  });
+
+  // Get meetings related to a class
+  router.get("/college/classes/:classId/meetings", authenticateJWT, async (req, res) => {
+    try {
+      const classId = parseInt(req.params.classId);
+      if (isNaN(classId)) {
+        return res.status(400).json({ message: "Invalid class ID" });
+      }
+      
+      const meetings = await storage.getMeetingsByRelatedClass(classId);
+      res.json(meetings);
+    } catch (error) {
+      log(`Error fetching meetings for class: ${error}`);
+      res.status(500).json({ message: "Failed to fetch meetings for class" });
+    }
+  });
+
+  // Meeting Participant Routes
+
+  // Get participants for a meeting
+  router.get("/meetings/:meetingId/participants", authenticateJWT, async (req, res) => {
+    try {
+      const meetingId = parseInt(req.params.meetingId);
+      if (isNaN(meetingId)) {
+        return res.status(400).json({ message: "Invalid meeting ID" });
+      }
+      
+      const participants = await storage.getMeetingParticipants(meetingId);
+      res.json(participants);
+    } catch (error) {
+      log(`Error fetching meeting participants: ${error}`);
+      res.status(500).json({ message: "Failed to fetch meeting participants" });
+    }
+  });
+
+  // Get a specific participant
+  router.get("/meeting-participants/:id", authenticateJWT, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid participant ID" });
+      }
+
+      const participant = await storage.getMeetingParticipant(id);
+      if (!participant) {
+        return res.status(404).json({ message: "Meeting participant not found" });
+      }
+      
+      res.json(participant);
+    } catch (error) {
+      log(`Error fetching meeting participant: ${error}`);
+      res.status(500).json({ message: "Failed to fetch meeting participant" });
+    }
+  });
+
+  // Add a participant to a meeting
+  router.post("/meetings/:meetingId/participants", authenticateJWT, async (req, res) => {
+    try {
+      const meetingId = parseInt(req.params.meetingId);
+      if (isNaN(meetingId)) {
+        return res.status(400).json({ message: "Invalid meeting ID" });
+      }
+
+      const participantData = insertMeetingParticipantSchema.parse({ ...req.body, meetingId });
+      const participant = await storage.addMeetingParticipant(participantData);
+      res.status(201).json(participant);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({ message: validationError.message });
+      }
+      log(`Error adding meeting participant: ${error}`);
+      res.status(500).json({ message: "Failed to add meeting participant" });
+    }
+  });
+
+  // Update a participant
+  router.patch("/meeting-participants/:id", authenticateJWT, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid participant ID" });
+      }
+
+      const participantData = insertMeetingParticipantSchema.partial().parse(req.body);
+      const participant = await storage.updateMeetingParticipant(id, participantData);
+      
+      if (!participant) {
+        return res.status(404).json({ message: "Meeting participant not found" });
+      }
+      
+      res.json(participant);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({ message: validationError.message });
+      }
+      log(`Error updating meeting participant: ${error}`);
+      res.status(500).json({ message: "Failed to update meeting participant" });
+    }
+  });
+
+  // Remove a participant from a meeting
+  router.delete("/meeting-participants/:id", authenticateJWT, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid participant ID" });
+      }
+
+      const success = await storage.removeMeetingParticipant(id);
+      if (!success) {
+        return res.status(404).json({ message: "Meeting participant not found" });
+      }
+      
+      res.status(204).end();
+    } catch (error) {
+      log(`Error removing meeting participant: ${error}`);
+      res.status(500).json({ message: "Failed to remove meeting participant" });
+    }
+  });
+
+  // Meeting Template Routes
+
+  // Get templates for a user
+  router.get("/meeting-templates", authenticateJWT, async (req, res) => {
+    try {
+      const userId = req.userId;
+      const templates = await storage.getMeetingTemplates(userId);
+      res.json(templates);
+    } catch (error) {
+      log(`Error fetching meeting templates: ${error}`);
+      res.status(500).json({ message: "Failed to fetch meeting templates" });
+    }
+  });
+
+  // Get a specific template
+  router.get("/meeting-templates/:id", authenticateJWT, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid template ID" });
+      }
+
+      const template = await storage.getMeetingTemplate(id);
+      if (!template) {
+        return res.status(404).json({ message: "Meeting template not found" });
+      }
+      
+      res.json(template);
+    } catch (error) {
+      log(`Error fetching meeting template: ${error}`);
+      res.status(500).json({ message: "Failed to fetch meeting template" });
+    }
+  });
+
+  // Create a new template
+  router.post("/meeting-templates", authenticateJWT, async (req, res) => {
+    try {
+      // Add the current user ID to the template data
+      const templateData = insertMeetingTemplateSchema.parse({ 
+        ...req.body, 
+        userId: req.userId
+      });
+      
+      const template = await storage.createMeetingTemplate(templateData);
+      res.status(201).json(template);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({ message: validationError.message });
+      }
+      log(`Error creating meeting template: ${error}`);
+      res.status(500).json({ message: "Failed to create meeting template" });
+    }
+  });
+
+  // Update a template
+  router.patch("/meeting-templates/:id", authenticateJWT, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid template ID" });
+      }
+
+      const templateData = insertMeetingTemplateSchema.partial().parse(req.body);
+      const template = await storage.updateMeetingTemplate(id, templateData);
+      
+      if (!template) {
+        return res.status(404).json({ message: "Meeting template not found" });
+      }
+      
+      res.json(template);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({ message: validationError.message });
+      }
+      log(`Error updating meeting template: ${error}`);
+      res.status(500).json({ message: "Failed to update meeting template" });
+    }
+  });
+
+  // Delete a template
+  router.delete("/meeting-templates/:id", authenticateJWT, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid template ID" });
+      }
+
+      const success = await storage.deleteMeetingTemplate(id);
+      if (!success) {
+        return res.status(404).json({ message: "Meeting template not found" });
+      }
+      
+      res.status(204).end();
+    } catch (error) {
+      log(`Error deleting meeting template: ${error}`);
+      res.status(500).json({ message: "Failed to delete meeting template" });
+    }
+  });
+
+  // Create a meeting from a template
+  router.post("/meeting-templates/:id/create-meeting", authenticateJWT, async (req, res) => {
+    try {
+      const templateId = parseInt(req.params.id);
+      if (isNaN(templateId)) {
+        return res.status(400).json({ message: "Invalid template ID" });
+      }
+
+      if (!req.body.startTime) {
+        return res.status(400).json({ message: "Start time is required" });
+      }
+
+      const startTime = new Date(req.body.startTime);
+      if (isNaN(startTime.getTime())) {
+        return res.status(400).json({ message: "Invalid start time format" });
+      }
+
+      // Extract any additional data provided
+      const { startTime: _, ...additionalData } = req.body;
+
+      const meeting = await storage.createMeetingFromTemplate(
+        templateId,
+        startTime,
+        additionalData
+      );
+      
+      res.status(201).json(meeting);
+    } catch (error) {
+      if (error.message && error.message.includes('not found')) {
+        return res.status(404).json({ message: error.message });
+      }
+      log(`Error creating meeting from template: ${error}`);
+      res.status(500).json({ message: "Failed to create meeting from template" });
     }
   });
 

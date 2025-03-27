@@ -162,3 +162,95 @@ export const insertClassAttendanceSchema = createInsertSchema(classAttendance).o
 
 export type InsertClassAttendance = z.infer<typeof insertClassAttendanceSchema>;
 export type ClassAttendance = typeof classAttendance.$inferSelect;
+
+// Meeting Platform Types
+export const meetingPlatforms = ["zoom", "google_meet", "microsoft_teams", "webex", "other"] as const;
+export type MeetingPlatform = typeof meetingPlatforms[number];
+
+// Meeting Types
+export const meetingTypes = ["one_on_one", "group", "workshop", "class", "interview", "other"] as const;
+export type MeetingType = typeof meetingTypes[number];
+
+// Meeting Status
+export const meetingStatuses = ["scheduled", "canceled", "completed", "rescheduled"] as const;
+export type MeetingStatus = typeof meetingStatuses[number];
+
+// Define the meetings table
+export const meetings = pgTable("meetings", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description"),
+  platform: text("platform").$type<MeetingPlatform>().notNull(),
+  meetingType: text("meeting_type").$type<MeetingType>().notNull(),
+  status: text("status").$type<MeetingStatus>().default("scheduled").notNull(),
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time").notNull(),
+  meetingUrl: text("meeting_url"),
+  meetingId: text("meeting_id"),
+  password: text("password"),
+  hostUserId: integer("host_user_id").notNull(), // Reference to users
+  colorTag: text("color_tag").$type<HabitColor>().default("primary"),
+  reminderEnabled: boolean("reminder_enabled").default(true),
+  reminderTime: integer("reminder_time").default(15), // minutes before meeting
+  notes: text("notes"),
+  relatedHabitId: integer("related_habit_id"), // Optional link to a habit
+  relatedClassId: integer("related_class_id"), // Optional link to a college class
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertMeetingSchema = createInsertSchema(meetings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertMeeting = z.infer<typeof insertMeetingSchema>;
+export type Meeting = typeof meetings.$inferSelect;
+
+// Define the meeting participants table
+export const meetingParticipants = pgTable("meeting_participants", {
+  id: serial("id").primaryKey(),
+  meetingId: integer("meeting_id").notNull(),
+  userId: integer("user_id"), // Reference to users (can be null for external participants)
+  name: text("name"), // For external participants without user accounts
+  email: text("email"), // For external participants
+  status: text("status").default("pending"), // pending, accepted, declined, maybe
+  notificationSent: boolean("notification_sent").default(false),
+  joinedAt: timestamp("joined_at"), // Track when they actually joined
+  leftAt: timestamp("left_at"), // Track when they left
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertMeetingParticipantSchema = createInsertSchema(meetingParticipants).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertMeetingParticipant = z.infer<typeof insertMeetingParticipantSchema>;
+export type MeetingParticipant = typeof meetingParticipants.$inferSelect;
+
+// Define the meeting templates table
+export const meetingTemplates = pgTable("meeting_templates", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  platform: text("platform").$type<MeetingPlatform>(),
+  meetingType: text("meeting_type").$type<MeetingType>(),
+  duration: integer("duration").notNull(), // in minutes
+  meetingUrlTemplate: text("meeting_url_template"),
+  colorTag: text("color_tag").$type<HabitColor>().default("primary"),
+  reminderEnabled: boolean("reminder_enabled").default(true),
+  reminderTime: integer("reminder_time").default(15), // minutes before meeting
+  notes: text("notes"),
+  userId: integer("user_id").notNull(), // User who created this template
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertMeetingTemplateSchema = createInsertSchema(meetingTemplates).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertMeetingTemplate = z.infer<typeof insertMeetingTemplateSchema>;
+export type MeetingTemplate = typeof meetingTemplates.$inferSelect;
