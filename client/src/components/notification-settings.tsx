@@ -1,238 +1,310 @@
-import { useState, useEffect } from 'react';
-import { useNotificationSettings } from '@/hooks/use-notification-settings';
-import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
+import { useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Bell, Clock, Save, Smartphone } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useNotificationSettings } from "@/hooks/use-notification-settings";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { notificationSettingsSchema } from "@shared/schema";
 
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Slider } from '@/components/ui/slider';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, BellRing, Check, X } from 'lucide-react';
+// Define a more targeted schema for the form with validation
+const formSchema = notificationSettingsSchema.extend({
+  phoneNumber: z.string().optional().refine(
+    (val) => !val || /^\+\d{10,15}$/.test(val),
+    {
+      message: "Phone number must be in international format (e.g., +1234567890)",
+    }
+  ),
+});
 
 export default function NotificationSettings() {
   const { toast } = useToast();
-  const { 
-    settings, 
-    isLoading, 
-    updateSettings, 
-    isUpdating, 
-    serviceStatus, 
-    isCheckingService 
+  
+  const {
+    data: settings,
+    isLoading,
+    isError,
+    error,
+    updateSettings,
   } = useNotificationSettings();
 
-  // Use state to manage form values
-  const [formValues, setFormValues] = useState({
-    enabled: false,
-    phoneNumber: '',
-    notifyBeforeClass: false,
-    notifyMissedClass: false,
-    reminderTime: 30,
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      enabled: false,
+      phoneNumber: "",
+      notifyBeforeClass: true,
+      notifyMissedClass: true,
+      reminderTime: 30,
+    },
   });
 
   // Update form when settings are loaded
   useEffect(() => {
     if (settings) {
-      setFormValues({
-        enabled: settings.enabled || false,
-        phoneNumber: settings.phoneNumber || '',
-        notifyBeforeClass: settings.notifyBeforeClass || false,
-        notifyMissedClass: settings.notifyMissedClass || false,
-        reminderTime: settings.reminderTime || 30,
+      form.reset({
+        enabled: settings.enabled,
+        phoneNumber: settings.phoneNumber || "",
+        notifyBeforeClass: settings.notifyBeforeClass ?? true,
+        notifyMissedClass: settings.notifyMissedClass ?? true,
+        reminderTime: settings.reminderTime ?? 30,
       });
     }
-  }, [settings]);
+  }, [settings, form]);
 
-  // Handle form submission
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    updateSettings(formValues, {
-      onSuccess: () => {
-        toast({
-          title: "Settings updated",
-          description: "Your notification settings have been saved.",
-        });
-      },
-      onError: () => {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Failed to update notification settings.",
-        });
-      }
-    });
+  const onSubmit = async (data: z.infer<typeof formSchema>) => {
+    try {
+      await updateSettings.mutateAsync(data);
+      toast({
+        title: "Settings updated",
+        description: "Your notification preferences have been saved.",
+      });
+    } catch (error) {
+      console.error("Failed to update notification settings:", error);
+      toast({
+        title: "Failed to update settings",
+        description: "There was an error saving your notification preferences.",
+        variant: "destructive",
+      });
+    }
   };
 
-  // Loading state
-  if (isLoading || isCheckingService) {
+  if (isLoading) {
     return (
-      <Card className="w-full">
-        <CardHeader>
-          <Skeleton className="h-8 w-64 mb-2" />
-          <Skeleton className="h-4 w-full" />
+      <Card className="w-full shadow-lg border-opacity-50">
+        <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+          <CardTitle className="flex items-center gap-2 text-transparent bg-clip-text bg-gradient-to-r from-primary to-purple-600">
+            <Bell className="h-5 w-5 text-primary" />
+            Loading Notification Settings...
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-10 w-full" />
+        <CardContent className="p-6">
+          <div className="h-40 flex items-center justify-center">
+            <div className="animate-pulse h-6 w-32 bg-slate-200 dark:bg-slate-700 rounded"></div>
+          </div>
         </CardContent>
-        <CardFooter>
-          <Skeleton className="h-10 w-32" />
-        </CardFooter>
       </Card>
     );
   }
 
-  // Check if service is available
-  const isServiceAvailable = serviceStatus?.enabled === true;
-
-  return (
-    <Card className="w-full">
-      <form onSubmit={handleSubmit}>
+  if (isError) {
+    return (
+      <Card className="w-full">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <BellRing className="h-5 w-5" />
-            WhatsApp Notification Settings
+            <Bell className="h-5 w-5" />
+            Notification Settings
           </CardTitle>
-          <CardDescription>
-            Configure WhatsApp notifications for your college classes
-          </CardDescription>
         </CardHeader>
-
-        <CardContent className="space-y-6">
-          {/* Service Status Alert */}
-          {!isServiceAvailable && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Service Unavailable</AlertTitle>
-              <AlertDescription>
-                WhatsApp notification service is currently unavailable. The necessary API credentials are not configured.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Main switch */}
-          <div className="flex items-center justify-between space-x-2">
-            <Label htmlFor="enable-notifications" className="flex flex-col space-y-1">
-              <span>Enable WhatsApp Notifications</span>
-              <span className="font-normal text-sm text-muted-foreground">
-                Receive updates about your classes via WhatsApp
-              </span>
-            </Label>
-            <Switch
-              id="enable-notifications"
-              disabled={!isServiceAvailable}
-              checked={formValues.enabled}
-              onCheckedChange={(checked) => 
-                setFormValues((prev) => ({ ...prev, enabled: checked }))
-              }
-            />
-          </div>
-
-          {/* Phone Number Input */}
-          <div className="space-y-2">
-            <Label htmlFor="phone-number">WhatsApp Phone Number</Label>
-            <Input
-              id="phone-number"
-              type="tel"
-              placeholder="+1234567890"
-              disabled={!formValues.enabled || !isServiceAvailable}
-              value={formValues.phoneNumber}
-              onChange={(e) => 
-                setFormValues((prev) => ({ ...prev, phoneNumber: e.target.value }))
-              }
-            />
-            <p className="text-xs text-muted-foreground">
-              Enter your full phone number with country code (e.g., +1234567890)
-            </p>
-          </div>
-
-          {/* Notification Options */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-medium">Notification Options</h3>
-            
-            {/* Before Class Notification */}
-            <div className="flex items-center justify-between space-x-2">
-              <Label htmlFor="notify-before-class">
-                Notify before class
-              </Label>
-              <Switch
-                id="notify-before-class"
-                disabled={!formValues.enabled || !isServiceAvailable}
-                checked={formValues.notifyBeforeClass}
-                onCheckedChange={(checked) => 
-                  setFormValues((prev) => ({ ...prev, notifyBeforeClass: checked }))
-                }
-              />
-            </div>
-            
-            {/* Missed Class Notification */}
-            <div className="flex items-center justify-between space-x-2">
-              <Label htmlFor="notify-missed-class">
-                Notify for missed classes
-              </Label>
-              <Switch
-                id="notify-missed-class"
-                disabled={!formValues.enabled || !isServiceAvailable}
-                checked={formValues.notifyMissedClass}
-                onCheckedChange={(checked) => 
-                  setFormValues((prev) => ({ ...prev, notifyMissedClass: checked }))
-                }
-              />
-            </div>
-          </div>
-
-          {/* Reminder Time Slider */}
-          <div className="space-y-4">
-            <div className="flex justify-between">
-              <Label htmlFor="reminder-time">Reminder Time (minutes before class)</Label>
-              <span className="text-sm font-medium">{formValues.reminderTime} min</span>
-            </div>
-            <Slider
-              id="reminder-time"
-              disabled={!formValues.enabled || !formValues.notifyBeforeClass || !isServiceAvailable}
-              value={[formValues.reminderTime]}
-              min={5}
-              max={60}
-              step={5}
-              onValueChange={(value) => 
-                setFormValues((prev) => ({ ...prev, reminderTime: value[0] }))
-              }
-            />
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>5 min</span>
-              <span>60 min</span>
-            </div>
-          </div>
+        <CardContent>
+          <Alert variant="destructive">
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>
+              Failed to load notification settings. Please try again later.
+            </AlertDescription>
+          </Alert>
         </CardContent>
+      </Card>
+    );
+  }
 
-        <CardFooter className="flex justify-between">
-          <Button 
-            type="button" 
-            variant="outline"
-            onClick={() => {
-              if (settings) {
-                setFormValues({
-                  enabled: settings.enabled || false,
-                  phoneNumber: settings.phoneNumber || '',
-                  notifyBeforeClass: settings.notifyBeforeClass || false,
-                  notifyMissedClass: settings.notifyMissedClass || false,
-                  reminderTime: settings.reminderTime || 30,
-                });
-              }
-            }}
-          >
-            Reset
-          </Button>
-          <Button type="submit" disabled={isUpdating || !isServiceAvailable}>
-            {isUpdating ? "Saving..." : "Save Settings"}
-          </Button>
-        </CardFooter>
-      </form>
+  return (
+    <Card className="w-full shadow-lg border-opacity-50">
+      <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+        <CardTitle className="flex items-center gap-2 text-transparent bg-clip-text bg-gradient-to-r from-primary to-purple-600">
+          <Bell className="h-5 w-5 text-primary" />
+          WhatsApp Notification Settings
+        </CardTitle>
+        <CardDescription>
+          Manage your notification preferences for WhatsApp alerts and reminders
+        </CardDescription>
+      </CardHeader>
+
+      <CardContent className="p-6">
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <div className="p-4 bg-slate-50 dark:bg-slate-700/30 rounded-lg border border-slate-200 dark:border-slate-700 mb-6">
+              <div className="flex flex-wrap justify-between items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Smartphone className="h-5 w-5 text-primary" />
+                  <div>
+                    <h3 className="text-base font-medium">WhatsApp Notifications</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Enable to receive notifications via WhatsApp</p>
+                  </div>
+                </div>
+                <FormField
+                  control={form.control}
+                  name="enabled"
+                  render={({ field }) => (
+                    <FormItem className="flex items-center gap-2">
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <FormLabel className="m-0">
+                        {field.value ? "Enabled" : "Disabled"}
+                      </FormLabel>
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <FormField
+                control={form.control}
+                name="phoneNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>WhatsApp Phone Number</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="+1234567890"
+                        {...field}
+                        disabled={!form.watch("enabled")}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Enter your phone number with country code (e.g., +1234567890)
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                <div className="p-4 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+                  <div className="flex flex-col space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-5 w-5 text-blue-500" />
+                      <h3 className="text-base font-medium">Class Reminders</h3>
+                    </div>
+                    <FormField
+                      control={form.control}
+                      name="notifyBeforeClass"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                          <div className="space-y-0.5">
+                            <FormLabel>Before Class Notifications</FormLabel>
+                            <FormDescription>
+                              Receive notifications before classes start
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                              disabled={!form.watch("enabled")}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={form.control}
+                      name="reminderTime"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Reminder Time</FormLabel>
+                          <Select
+                            disabled={!form.watch("enabled") || !form.watch("notifyBeforeClass")}
+                            onValueChange={(value) => field.onChange(parseInt(value))}
+                            defaultValue={field.value?.toString()}
+                            value={field.value?.toString()}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select reminder time" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="15">15 minutes before</SelectItem>
+                              <SelectItem value="30">30 minutes before</SelectItem>
+                              <SelectItem value="60">1 hour before</SelectItem>
+                              <SelectItem value="120">2 hours before</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            How early to send reminders before class
+                          </FormDescription>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+                
+                <div className="p-4 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+                  <div className="flex flex-col space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Bell className="h-5 w-5 text-amber-500" />
+                      <h3 className="text-base font-medium">Missed Class Alerts</h3>
+                    </div>
+                    <FormField
+                      control={form.control}
+                      name="notifyMissedClass"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                          <div className="space-y-0.5">
+                            <FormLabel>Missed Class Notifications</FormLabel>
+                            <FormDescription>
+                              Get notified when you miss a scheduled class
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                              disabled={!form.watch("enabled")}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <div className="p-4 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 rounded-lg text-sm">
+                      Missed class notifications will be sent approximately 15 minutes after the class start time if no attendance is recorded.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full sm:w-auto bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-700"
+              disabled={updateSettings.isPending || !form.formState.isDirty}
+            >
+              {updateSettings.isPending ? (
+                <div className="flex items-center gap-2">
+                  <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>Saving...</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Save className="h-4 w-4" />
+                  <span>Save Settings</span>
+                </div>
+              )}
+            </Button>
+          </form>
+        </Form>
+      </CardContent>
+
+      <CardFooter className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 py-3 px-6 border-t border-slate-200 dark:border-slate-800">
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Notification settings will be applied immediately after saving.
+        </p>
+      </CardFooter>
     </Card>
   );
 }
