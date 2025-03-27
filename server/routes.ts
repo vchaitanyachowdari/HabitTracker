@@ -6,7 +6,9 @@ import {
   insertHabitRecordSchema,
   insertCollegeClassSchema,
   insertClassAttendanceSchema,
-  notificationSettingsSchema
+  notificationSettingsSchema,
+  insertHabitCategorySchema,
+  insertHabitTagSchema
 } from "@shared/schema";
 import { log } from "./vite";
 import { ZodError } from "zod";
@@ -590,6 +592,224 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       log(`Error checking notification service status: ${error}`);
       res.status(500).json({ message: "Failed to check notification service status" });
+    }
+  });
+
+  // Habit Category Routes
+
+  // Get all habit categories
+  router.get("/habit-categories", async (req, res) => {
+    try {
+      const categories = await storage.getHabitCategories();
+      res.json(categories);
+    } catch (error) {
+      log(`Error fetching habit categories: ${error}`);
+      res.status(500).json({ message: "Failed to fetch habit categories" });
+    }
+  });
+
+  // Get a specific habit category
+  router.get("/habit-categories/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid category ID" });
+      }
+
+      const category = await storage.getHabitCategory(id);
+      if (!category) {
+        return res.status(404).json({ message: "Habit category not found" });
+      }
+      
+      res.json(category);
+    } catch (error) {
+      log(`Error fetching habit category: ${error}`);
+      res.status(500).json({ message: "Failed to fetch habit category" });
+    }
+  });
+
+  // Create a new habit category
+  router.post("/habit-categories", async (req, res) => {
+    try {
+      const categoryData = insertHabitCategorySchema.parse(req.body);
+      const category = await storage.createHabitCategory(categoryData);
+      res.status(201).json(category);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({ message: validationError.message });
+      }
+      log(`Error creating habit category: ${error}`);
+      res.status(500).json({ message: "Failed to create habit category" });
+    }
+  });
+
+  // Update a habit category
+  router.patch("/habit-categories/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid category ID" });
+      }
+
+      const categoryData = insertHabitCategorySchema.partial().parse(req.body);
+      const category = await storage.updateHabitCategory(id, categoryData);
+      
+      if (!category) {
+        return res.status(404).json({ message: "Habit category not found" });
+      }
+      
+      res.json(category);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({ message: validationError.message });
+      }
+      log(`Error updating habit category: ${error}`);
+      res.status(500).json({ message: "Failed to update habit category" });
+    }
+  });
+
+  // Delete a habit category
+  router.delete("/habit-categories/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid category ID" });
+      }
+
+      const success = await storage.deleteHabitCategory(id);
+      if (!success) {
+        return res.status(404).json({ message: "Habit category not found" });
+      }
+      
+      res.status(204).end();
+    } catch (error) {
+      log(`Error deleting habit category: ${error}`);
+      res.status(500).json({ message: "Failed to delete habit category" });
+    }
+  });
+
+  // Get all habits in a category
+  router.get("/habit-categories/:id/habits", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid category ID" });
+      }
+
+      const habits = await storage.getHabitsByCategory(id);
+      res.json(habits);
+    } catch (error) {
+      log(`Error fetching habits by category: ${error}`);
+      res.status(500).json({ message: "Failed to fetch habits by category" });
+    }
+  });
+
+  // Habit Tag Routes
+
+  // Get all habit tags
+  router.get("/habit-tags", async (req, res) => {
+    try {
+      const tags = await storage.getHabitTags();
+      res.json(tags);
+    } catch (error) {
+      log(`Error fetching habit tags: ${error}`);
+      res.status(500).json({ message: "Failed to fetch habit tags" });
+    }
+  });
+
+  // Get a specific habit tag
+  router.get("/habit-tags/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid tag ID" });
+      }
+
+      const tag = await storage.getHabitTag(id);
+      if (!tag) {
+        return res.status(404).json({ message: "Habit tag not found" });
+      }
+      
+      res.json(tag);
+    } catch (error) {
+      log(`Error fetching habit tag: ${error}`);
+      res.status(500).json({ message: "Failed to fetch habit tag" });
+    }
+  });
+
+  // Create a new habit tag
+  router.post("/habit-tags", async (req, res) => {
+    try {
+      const tagData = insertHabitTagSchema.parse(req.body);
+      const tag = await storage.createHabitTag(tagData);
+      res.status(201).json(tag);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({ message: validationError.message });
+      }
+      log(`Error creating habit tag: ${error}`);
+      res.status(500).json({ message: "Failed to create habit tag" });
+    }
+  });
+
+  // Update a habit tag
+  router.patch("/habit-tags/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid tag ID" });
+      }
+
+      const tagData = insertHabitTagSchema.partial().parse(req.body);
+      const tag = await storage.updateHabitTag(id, tagData);
+      
+      if (!tag) {
+        return res.status(404).json({ message: "Habit tag not found" });
+      }
+      
+      res.json(tag);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        const validationError = fromZodError(error);
+        return res.status(400).json({ message: validationError.message });
+      }
+      log(`Error updating habit tag: ${error}`);
+      res.status(500).json({ message: "Failed to update habit tag" });
+    }
+  });
+
+  // Delete a habit tag
+  router.delete("/habit-tags/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid tag ID" });
+      }
+
+      const success = await storage.deleteHabitTag(id);
+      if (!success) {
+        return res.status(404).json({ message: "Habit tag not found" });
+      }
+      
+      res.status(204).end();
+    } catch (error) {
+      log(`Error deleting habit tag: ${error}`);
+      res.status(500).json({ message: "Failed to delete habit tag" });
+    }
+  });
+
+  // Get all habits with a specific tag
+  router.get("/habit-tags/:id/habits", async (req, res) => {
+    try {
+      const id = req.params.id; // Tags can be string IDs
+      const habits = await storage.getHabitsByTag(id);
+      res.json(habits);
+    } catch (error) {
+      log(`Error fetching habits by tag: ${error}`);
+      res.status(500).json({ message: "Failed to fetch habits by tag" });
     }
   });
 

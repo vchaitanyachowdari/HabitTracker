@@ -38,6 +38,53 @@ export type HabitFrequency = typeof habitFrequencies[number];
 export const habitColors = ["primary", "secondary", "accent", "danger", "purple", "pink"] as const;
 export type HabitColor = typeof habitColors[number];
 
+// Define default habit categories
+export const defaultHabitCategories = [
+  "Health & Fitness",
+  "Productivity",
+  "Learning",
+  "Mindfulness",
+  "Finance",
+  "Social",
+  "Personal Growth",
+  "Other"
+] as const;
+export type DefaultHabitCategory = typeof defaultHabitCategories[number];
+
+// Define the habit categories table
+export const habitCategories = pgTable("habit_categories", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  colorTag: text("color_tag").$type<HabitColor>(),
+  icon: text("icon"), // Store icon name (e.g., "dumbbell", "book")
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertHabitCategorySchema = createInsertSchema(habitCategories).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertHabitCategory = z.infer<typeof insertHabitCategorySchema>;
+export type HabitCategory = typeof habitCategories.$inferSelect;
+
+// Define the habit tags table
+export const habitTags = pgTable("habit_tags", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  colorTag: text("color_tag").$type<HabitColor>(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertHabitTagSchema = createInsertSchema(habitTags).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertHabitTag = z.infer<typeof insertHabitTagSchema>;
+export type HabitTag = typeof habitTags.$inferSelect;
+
 // Define the habits table
 export const habits = pgTable("habits", {
   id: serial("id").primaryKey(),
@@ -46,6 +93,8 @@ export const habits = pgTable("habits", {
   frequency: text("frequency").notNull().$type<HabitFrequency>(),
   reminderTime: text("reminder_time"),
   colorTag: text("color_tag").notNull().$type<HabitColor>(),
+  categoryId: integer("category_id"), // Reference to habit_categories
+  tags: jsonb("tags").default([]).$type<string[]>(), // Store tag IDs as an array
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

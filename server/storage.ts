@@ -4,7 +4,10 @@ import {
   users, type User, type InsertUser,
   collegeClasses, type CollegeClass, type InsertCollegeClass,
   classAttendance, type ClassAttendance, type InsertClassAttendance,
-  type NotificationSettings
+  type NotificationSettings,
+  habitCategories, type HabitCategory, type InsertHabitCategory,
+  habitTags, type HabitTag, type InsertHabitTag,
+  defaultHabitCategories
 } from "@shared/schema";
 
 export interface IStorage {
@@ -16,9 +19,25 @@ export interface IStorage {
   getNotificationSettings(userId: number): Promise<NotificationSettings | undefined>;
   updateNotificationSettings(userId: number, settings: NotificationSettings): Promise<NotificationSettings | undefined>;
   
+  // Habit Categories operations
+  getHabitCategories(): Promise<HabitCategory[]>;
+  getHabitCategory(id: number): Promise<HabitCategory | undefined>;
+  createHabitCategory(category: InsertHabitCategory): Promise<HabitCategory>;
+  updateHabitCategory(id: number, category: Partial<InsertHabitCategory>): Promise<HabitCategory | undefined>;
+  deleteHabitCategory(id: number): Promise<boolean>;
+  
+  // Habit Tags operations
+  getHabitTags(): Promise<HabitTag[]>;
+  getHabitTag(id: number): Promise<HabitTag | undefined>;
+  createHabitTag(tag: InsertHabitTag): Promise<HabitTag>;
+  updateHabitTag(id: number, tag: Partial<InsertHabitTag>): Promise<HabitTag | undefined>;
+  deleteHabitTag(id: number): Promise<boolean>;
+  
   // Habit CRUD operations
   getHabits(): Promise<Habit[]>;
   getHabit(id: number): Promise<Habit | undefined>;
+  getHabitsByCategory(categoryId: number): Promise<Habit[]>;
+  getHabitsByTag(tagId: string): Promise<Habit[]>;
   createHabit(habit: InsertHabit): Promise<Habit>;
   updateHabit(id: number, habit: Partial<InsertHabit>): Promise<Habit | undefined>;
   deleteHabit(id: number): Promise<boolean>;
@@ -50,11 +69,15 @@ export class MemStorage implements IStorage {
   private users: Map<number, User>;
   private habits: Map<number, Habit>;
   private habitRecords: Map<number, HabitRecord>;
+  private habitCategories: Map<number, HabitCategory>;
+  private habitTags: Map<number, HabitTag>;
   private collegeClasses: Map<number, CollegeClass>;
   private classAttendances: Map<number, ClassAttendance>;
   private userId: number;
   private habitId: number;
   private recordId: number;
+  private categoryId: number;
+  private tagId: number;
   private collegeClassId: number;
   private classAttendanceId: number;
 
@@ -62,11 +85,15 @@ export class MemStorage implements IStorage {
     this.users = new Map();
     this.habits = new Map();
     this.habitRecords = new Map();
+    this.habitCategories = new Map();
+    this.habitTags = new Map();
     this.collegeClasses = new Map();
     this.classAttendances = new Map();
     this.userId = 1;
     this.habitId = 1;
     this.recordId = 1;
+    this.categoryId = 1;
+    this.tagId = 1;
     this.collegeClassId = 1;
     this.classAttendanceId = 1;
 
@@ -76,13 +103,105 @@ export class MemStorage implements IStorage {
   }
 
   private async initializeData() {
-    // Creating example habits
-    const exampleHabits: InsertHabit[] = [
-      { name: "Morning Workout", description: "30 min workout routine", frequency: "daily", reminderTime: "07:00", colorTag: "secondary" },
-      { name: "Read 30 Minutes", description: "Read a book", frequency: "daily", reminderTime: "19:00", colorTag: "primary" },
-      { name: "Meditate", description: "10 min meditation", frequency: "daily", reminderTime: "08:00", colorTag: "accent" },
-      { name: "No Social Media", description: "Avoid social platforms", frequency: "daily", reminderTime: null, colorTag: "danger" },
-      { name: "Drink 2L Water", description: "Stay hydrated", frequency: "daily", reminderTime: null, colorTag: "primary" },
+    // Initialize default habit categories from schema
+    for (const categoryName of defaultHabitCategories) {
+      let colorTag: "primary" | "secondary" | "accent" | "danger" | "purple" | "pink" = "primary";
+      
+      // Assign different colors based on category name
+      switch(categoryName) {
+        case "Health & Fitness":
+          colorTag = "secondary";
+          break;
+        case "Learning & Education":
+          colorTag = "primary";
+          break;
+        case "Personal Development":
+          colorTag = "accent";
+          break;
+        case "Productivity":
+          colorTag = "danger";
+          break;
+        case "Mindfulness":
+          colorTag = "purple";
+          break;
+        default:
+          colorTag = "primary";
+      }
+      
+      await this.createHabitCategory({
+        name: categoryName,
+        description: `Habits related to ${categoryName.toLowerCase()}`,
+        colorTag
+      });
+    }
+    
+    // Create some example tags
+    const exampleTags = [
+      { name: "Morning", colorTag: "primary" },
+      { name: "Evening", colorTag: "purple" },
+      { name: "Quick", colorTag: "secondary" },
+      { name: "Important", colorTag: "danger" },
+      { name: "Challenging", colorTag: "accent" }
+    ];
+    
+    for (const tag of exampleTags) {
+      await this.createHabitTag(tag);
+    }
+    
+    // Fetch all created categories
+    const categories = await this.getHabitCategories();
+    const tags = await this.getHabitTags();
+    
+    // Map categories by name for easier lookup
+    const categoryMap = new Map(categories.map(category => [category.name, category.id]));
+    const tagMap = new Map(tags.map(tag => [tag.name, tag.id]));
+
+    // Creating example habits with categories and tags
+    const exampleHabits: (InsertHabit & { categoryId?: number, tagIds?: number[] })[] = [
+      { 
+        name: "Morning Workout", 
+        description: "30 min workout routine", 
+        frequency: "daily", 
+        reminderTime: "07:00", 
+        colorTag: "secondary",
+        categoryId: categoryMap.get("Health & Fitness"),
+        tagIds: [tagMap.get("Morning"), tagMap.get("Important")]
+      },
+      { 
+        name: "Read 30 Minutes", 
+        description: "Read a book", 
+        frequency: "daily", 
+        reminderTime: "19:00", 
+        colorTag: "primary",
+        categoryId: categoryMap.get("Learning & Education"),
+        tagIds: [tagMap.get("Evening")]
+      },
+      { 
+        name: "Meditate", 
+        description: "10 min meditation", 
+        frequency: "daily", 
+        reminderTime: "08:00", 
+        colorTag: "accent",
+        categoryId: categoryMap.get("Mindfulness"),
+        tagIds: [tagMap.get("Morning"), tagMap.get("Quick")]
+      },
+      { 
+        name: "No Social Media", 
+        description: "Avoid social platforms", 
+        frequency: "daily", 
+        reminderTime: null, 
+        colorTag: "danger",
+        categoryId: categoryMap.get("Personal Development"),
+        tagIds: [tagMap.get("Challenging")]
+      },
+      { 
+        name: "Drink 2L Water", 
+        description: "Stay hydrated", 
+        frequency: "daily", 
+        reminderTime: null, 
+        colorTag: "primary",
+        categoryId: categoryMap.get("Health & Fitness")
+      },
     ];
 
     // Create all habits first
@@ -268,7 +387,7 @@ export class MemStorage implements IStorage {
     const now = new Date();
     
     // Ensure proper typing by explicitly setting fields
-    const habit: Habit = { 
+    const habit: Habit & { categoryId?: number, tagIds?: number[] } = { 
       id,
       name: insertHabit.name,
       description: insertHabit.description ?? null,
@@ -278,6 +397,16 @@ export class MemStorage implements IStorage {
       createdAt: now 
     };
     
+    // Add categoryId if provided (extend with custom property)
+    if ('categoryId' in insertHabit && typeof (insertHabit as any).categoryId === 'number') {
+      habit.categoryId = (insertHabit as any).categoryId;
+    }
+    
+    // Add tagIds if provided (extend with custom property)
+    if ('tagIds' in insertHabit && Array.isArray((insertHabit as any).tagIds)) {
+      habit.tagIds = (insertHabit as any).tagIds;
+    }
+    
     this.habits.set(id, habit);
     return habit;
   }
@@ -286,15 +415,39 @@ export class MemStorage implements IStorage {
     const habit = this.habits.get(id);
     if (!habit) return undefined;
 
+    // Preserve extended properties
+    const extendedProps: { categoryId?: number, tagIds?: number[] } = {};
+    
+    // Keep existing categoryId if present
+    if ('categoryId' in habit) {
+      extendedProps.categoryId = (habit as any).categoryId;
+    }
+    
+    // Keep existing tagIds if present
+    if ('tagIds' in habit) {
+      extendedProps.tagIds = (habit as any).tagIds;
+    }
+    
+    // Update categoryId if provided in update
+    if ('categoryId' in habitUpdate) {
+      extendedProps.categoryId = (habitUpdate as any).categoryId;
+    }
+    
+    // Update tagIds if provided in update
+    if ('tagIds' in habitUpdate) {
+      extendedProps.tagIds = (habitUpdate as any).tagIds;
+    }
+
     // Type-safe update
-    const updatedHabit: Habit = {
+    const updatedHabit: Habit & { categoryId?: number, tagIds?: number[] } = {
       id: habit.id,
       name: habitUpdate.name ?? habit.name,
       description: habitUpdate.description !== undefined ? habitUpdate.description : habit.description,
       frequency: (habitUpdate.frequency as "daily" | "weekly" | "monthly") ?? habit.frequency,
       reminderTime: habitUpdate.reminderTime !== undefined ? habitUpdate.reminderTime : habit.reminderTime,
       colorTag: (habitUpdate.colorTag as "primary" | "secondary" | "accent" | "danger" | "purple" | "pink") ?? habit.colorTag,
-      createdAt: habit.createdAt
+      createdAt: habit.createdAt,
+      ...extendedProps  // Add extended properties
     };
     
     this.habits.set(id, updatedHabit);
@@ -468,6 +621,114 @@ export class MemStorage implements IStorage {
       skipped,
       total: attended + skipped
     };
+  }
+
+  // Habit Category methods
+  async getHabitCategories(): Promise<HabitCategory[]> {
+    return Array.from(this.habitCategories.values());
+  }
+
+  async getHabitCategory(id: number): Promise<HabitCategory | undefined> {
+    return this.habitCategories.get(id);
+  }
+
+  async createHabitCategory(insertCategory: InsertHabitCategory): Promise<HabitCategory> {
+    const id = this.categoryId++;
+    const now = new Date();
+    
+    const category: HabitCategory = { 
+      id,
+      name: insertCategory.name,
+      description: insertCategory.description ?? null,
+      colorTag: insertCategory.colorTag as "primary" | "secondary" | "accent" | "danger" | "purple" | "pink",
+      createdAt: now 
+    };
+    
+    this.habitCategories.set(id, category);
+    return category;
+  }
+
+  async updateHabitCategory(id: number, categoryUpdate: Partial<InsertHabitCategory>): Promise<HabitCategory | undefined> {
+    const category = this.habitCategories.get(id);
+    if (!category) return undefined;
+
+    // Type-safe update
+    const updatedCategory: HabitCategory = {
+      id: category.id,
+      name: categoryUpdate.name ?? category.name,
+      description: categoryUpdate.description !== undefined ? categoryUpdate.description : category.description,
+      colorTag: (categoryUpdate.colorTag as "primary" | "secondary" | "accent" | "danger" | "purple" | "pink") ?? category.colorTag,
+      createdAt: category.createdAt
+    };
+    
+    this.habitCategories.set(id, updatedCategory);
+    return updatedCategory;
+  }
+
+  async deleteHabitCategory(id: number): Promise<boolean> {
+    return this.habitCategories.delete(id);
+  }
+
+  // Habit Tag methods
+  async getHabitTags(): Promise<HabitTag[]> {
+    return Array.from(this.habitTags.values());
+  }
+
+  async getHabitTag(id: number): Promise<HabitTag | undefined> {
+    return this.habitTags.get(id);
+  }
+
+  async createHabitTag(insertTag: InsertHabitTag): Promise<HabitTag> {
+    const id = this.tagId++;
+    const now = new Date();
+    
+    const tag: HabitTag = { 
+      id,
+      name: insertTag.name,
+      colorTag: insertTag.colorTag as "primary" | "secondary" | "accent" | "danger" | "purple" | "pink",
+      createdAt: now 
+    };
+    
+    this.habitTags.set(id, tag);
+    return tag;
+  }
+
+  async updateHabitTag(id: number, tagUpdate: Partial<InsertHabitTag>): Promise<HabitTag | undefined> {
+    const tag = this.habitTags.get(id);
+    if (!tag) return undefined;
+
+    // Type-safe update
+    const updatedTag: HabitTag = {
+      id: tag.id,
+      name: tagUpdate.name ?? tag.name,
+      colorTag: (tagUpdate.colorTag as "primary" | "secondary" | "accent" | "danger" | "purple" | "pink") ?? tag.colorTag,
+      createdAt: tag.createdAt
+    };
+    
+    this.habitTags.set(id, updatedTag);
+    return updatedTag;
+  }
+
+  async deleteHabitTag(id: number): Promise<boolean> {
+    return this.habitTags.delete(id);
+  }
+
+  // Get habits by category
+  async getHabitsByCategory(categoryId: number): Promise<Habit[]> {
+    // In a real database this would be a JOIN query
+    // For in-memory storage, we filter habits with matching categoryId
+    return Array.from(this.habits.values()).filter(habit => 
+      'categoryId' in habit && (habit as any).categoryId === categoryId
+    );
+  }
+
+  // Get habits by tag
+  async getHabitsByTag(tagId: string): Promise<Habit[]> {
+    // In a real database this would be a JOIN query on a many-to-many relationship
+    // For in-memory storage, we assume habits have a tags array
+    return Array.from(this.habits.values()).filter(habit => 
+      'tags' in habit && Array.isArray((habit as any).tags) && (habit as any).tags.includes(tagId)
+    );
   }
 }
 
