@@ -1,8 +1,9 @@
 import NotificationSettings from '@/components/notification-settings';
 import CalendarIntegrations from '@/components/calendar-integrations';
+import ApiKeysSettings from '@/components/api-keys-settings';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
-import { Settings as SettingsIcon, Bell, Calendar } from 'lucide-react';
+import { Settings as SettingsIcon, Bell, Calendar, Key } from 'lucide-react';
 
 export default function Settings() {
   return (
@@ -31,6 +32,10 @@ export default function Settings() {
             <Calendar className="h-4 w-4" />
             Calendar Integrations
           </TabsTrigger>
+          <TabsTrigger value="api-keys" className="flex items-center gap-2">
+            <Key className="h-4 w-4" />
+            API Keys
+          </TabsTrigger>
         </TabsList>
         
         <TabsContent value="notifications" className="space-y-4">
@@ -42,6 +47,12 @@ export default function Settings() {
         <TabsContent value="integrations" className="space-y-4">
           <div className="grid grid-cols-1 gap-6">
             <CalendarIntegrations />
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="api-keys" className="space-y-4">
+          <div className="grid grid-cols-1 gap-6">
+            <ApiKeysSettings />
           </div>
         </TabsContent>
       </Tabs>

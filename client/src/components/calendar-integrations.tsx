@@ -5,7 +5,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { useCalendarIntegrations } from '@/hooks/use-calendar-integrations';
 import { useToast } from '@/hooks/use-toast';
-import { AlertCircle, Calendar, CheckCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Calendar, CheckCircle, Loader2, Settings } from 'lucide-react';
+import { Link } from 'wouter';
 
 export default function CalendarIntegrations() {
   const { toast } = useToast();
@@ -118,6 +119,30 @@ export default function CalendarIntegrations() {
             </div>
           </div>
           
+          {!googleConfigured && (
+            <Alert className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Configuration Required</AlertTitle>
+              <AlertDescription className="flex flex-col gap-2">
+                <p>
+                  Google Calendar integration requires client ID, client secret, and redirect URI to be configured.
+                  These can be added as environment secrets via the settings page.
+                </p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-fit flex items-center gap-1"
+                  asChild
+                >
+                  <Link href="/settings">
+                    <Settings className="h-4 w-4" />
+                    Configure API Keys
+                  </Link>
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+          
           <div className="flex flex-wrap gap-2">
             {!googleConfigured && (
               <Button variant="outline" onClick={handleGoogleAuth} disabled={!googleAuthUrl}>
@@ -163,8 +188,22 @@ export default function CalendarIntegrations() {
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Configuration Required</AlertTitle>
-              <AlertDescription>
-                Notion integration requires API keys to be configured. Please contact the administrator.
+              <AlertDescription className="flex flex-col gap-2">
+                <p>
+                  Notion integration requires a Notion API key and database ID to be configured. 
+                  These can be added as environment secrets via the settings page.
+                </p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-fit flex items-center gap-1"
+                  asChild
+                >
+                  <Link href="/settings">
+                    <Settings className="h-4 w-4" />
+                    Configure API Keys
+                  </Link>
+                </Button>
               </AlertDescription>
             </Alert>
           )}

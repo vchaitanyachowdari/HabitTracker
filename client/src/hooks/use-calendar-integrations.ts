@@ -1,22 +1,65 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
+import { useState, useEffect } from 'react';
 
 /**
  * Hook to manage calendar integration services
  */
 export function useCalendarIntegrations() {
+  // Create state for service configuration status
+  const [serviceStatus, setServiceStatus] = useState({
+    googleConfigured: false,
+    notionConfigured: false
+  });
+
   // Get Google Auth URL
   const { 
     data: googleAuthUrlData,
     isLoading: isLoadingGoogleAuth
   } = useQuery({
     queryKey: ['/api/integrations/google-calendar/auth-url'],
+    onSuccess: (data) => {
+      // If we get a valid URL, Google is configured
+      setServiceStatus(prev => ({
+        ...prev,
+        googleConfigured: !!data?.url
+      }));
+    },
+    onError: () => {
+      setServiceStatus(prev => ({
+        ...prev,
+        googleConfigured: false
+      }));
+    }
   });
 
-  // Since we don't have a dedicated status endpoint, we'll check if Google is configured
-  // by trying to get the auth URL, and for Notion we'll check if notion API key is present in env
-  const notionConfigured = process.env.NOTION_API_KEY !== undefined;
-  const googleConfigured = googleAuthUrlData !== undefined && googleAuthUrlData.url !== undefined;
+  // Check if Notion is configured by attempting to get the status
+  useEffect(() => {
+    const checkNotionConfig = async () => {
+      try {
+        // We'll use a simple test to see if Notion sync is available
+        const response = await fetch('/api/integrations/notion/sync', {
+          method: 'HEAD'
+        });
+        
+        setServiceStatus(prev => ({
+          ...prev,
+          notionConfigured: response.ok
+        }));
+      } catch (error) {
+        // If there's an error, Notion is likely not configured
+        setServiceStatus(prev => ({
+          ...prev,
+          notionConfigured: false
+        }));
+      }
+    };
+    
+    checkNotionConfig();
+  }, []);
+
+  // Use the state values for configuration status
+  const { googleConfigured, notionConfigured } = serviceStatus;
 
   // Sync to Google Calendar
   const syncToGoogle = async (): Promise<boolean> => {
