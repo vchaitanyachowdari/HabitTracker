@@ -820,6 +820,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Create a token for user ID 1
       const token = authService.generateToken(1);
+      res.setHeader('Content-Type', 'application/json');
       res.json({ token });
     } catch (error) {
       log(`Error generating test token: ${error}`);
