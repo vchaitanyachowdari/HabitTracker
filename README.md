@@ -1,6 +1,7 @@
 # HabitTrack Pro - Comprehensive Habit Tracking Application
 
-![HabitTrack Pro Banner](./screenshots/banner.png)
+![Screenshot 2025-03-27 at 7 09 05 PM](https://github.com/user-attachments/assets/acfebc0b-bbbf-4041-96fb-01dc5aeb953b)
+
 
 HabitTrack Pro is a powerful habit tracking application designed to help users build, monitor, and maintain consistent routines through intuitive visual analytics and modern user interface design. The application combines habit tracking with college class attendance management and meeting scheduling in one seamless platform.
 
@@ -73,17 +74,20 @@ HabitTrack Pro is a powerful habit tracking application designed to help users b
 ### Dashboard
 The main dashboard provides an overview of your habits, upcoming classes, and scheduled meetings.
 
-![Dashboard](./screenshots/dashboard.png)
+![Screenshot 2025-03-27 at 7 01 17 PM](https://github.com/user-attachments/assets/bf38948d-85ba-4af3-b040-1133b17715d2)
+
 
 ### Habit Tracking
 Create and manage your habits with custom categories and tags.
 
-![Habit Tracking](./screenshots/habits.png)
+![Screenshot 2025-03-27 at 7 01 32 PM](https://github.com/user-attachments/assets/86d1d003-d158-42c2-8a3d-fbdd9b106279)
+
 
 ### College Class Management
 Track your class attendance and view statistics.
 
-![College Classes](./screenshots/college.png)
+![Screenshot 2025-03-27 at 7 02 18 PM](https://github.com/user-attachments/assets/a79a4298-7616-49c0-9ce0-4af91a9594c9)
+
 
 ### Meeting Scheduling
 Schedule and manage virtual meetings with integration to popular platforms.
@@ -93,17 +97,20 @@ Schedule and manage virtual meetings with integration to popular platforms.
 ### Calendar Integration
 Synchronize your habits, classes, and meetings with your Google or Notion calendar.
 
-![Calendar](./screenshots/calendar.png)
+![Screenshot 2025-03-27 at 7 01 46 PM](https://github.com/user-attachments/assets/d7967d27-2f07-4e8f-a8de-49165f8d4c3c)
+
 
 ### Statistics and Visualization
 View comprehensive statistics and visualizations of your habits and progress.
 
-![Statistics](./screenshots/statistics.png)
+![Screenshot 2025-03-27 at 7 02 02 PM](https://github.com/user-attachments/assets/1085336f-5851-46a9-a5bf-9d7042b1d666)
+
 
 ### Settings
 Configure your notification preferences, API integrations, and account settings.
 
-![Settings](./screenshots/settings.png)
+![Screenshot 2025-03-27 at 7 03 14 PM](https://github.com/user-attachments/assets/48657e98-d0e3-4b4e-af98-4272b6041612)
+
 
 ## Installation
 
