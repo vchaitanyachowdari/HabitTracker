@@ -10,21 +10,18 @@ export function useCalendarIntegrations() {
     data: googleAuthUrlData,
     isLoading: isLoadingGoogleAuth
   } = useQuery({
-    queryKey: ['/api/integrations/google/auth-url'],
+    queryKey: ['/api/integrations/google-calendar/auth-url'],
   });
 
-  // Get integration status
-  const {
-    data: integrationStatus,
-    isLoading: isLoadingStatus
-  } = useQuery({
-    queryKey: ['/api/integrations/status'],
-  });
+  // Since we don't have a dedicated status endpoint, we'll check if Google is configured
+  // by trying to get the auth URL, and for Notion we'll check if notion API key is present in env
+  const notionConfigured = process.env.NOTION_API_KEY !== undefined;
+  const googleConfigured = googleAuthUrlData !== undefined && googleAuthUrlData.url !== undefined;
 
   // Sync to Google Calendar
   const syncToGoogle = async (): Promise<boolean> => {
     try {
-      const result = await apiRequest('/api/integrations/google/sync', {
+      const result = await apiRequest('/api/integrations/google-calendar/sync', {
         method: 'POST',
       });
       return result.success === true;
@@ -53,16 +50,15 @@ export function useCalendarIntegrations() {
       const result = await apiRequest('/api/integrations/sync-all', {
         method: 'POST',
       });
-      return result;
+      return {
+        google: result.results?.google?.success === true,
+        notion: result.results?.notion?.success === true
+      };
     } catch (error) {
       console.error('Failed to sync with all services:', error);
       return { google: false, notion: false };
     }
   };
-
-  // Extract status information
-  const googleConfigured = integrationStatus?.google?.configured === true;
-  const notionConfigured = integrationStatus?.notion?.configured === true;
 
   return {
     googleAuthUrl: googleAuthUrlData?.url,
@@ -71,6 +67,6 @@ export function useCalendarIntegrations() {
     syncToGoogle,
     syncToNotion,
     syncToAll,
-    isLoading: isLoadingGoogleAuth || isLoadingStatus
+    isLoading: isLoadingGoogleAuth
   };
 }
